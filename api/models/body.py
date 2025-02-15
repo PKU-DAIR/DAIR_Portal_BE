@@ -15,13 +15,12 @@ class response_body:
                 res[key] = value
         return res
 
-class scoreItem(BaseModel):
-    course_id: str
-    course: str
-    course_type: str
-    question_id: str
-    label: int
-    comments: Optional[str]
-    user_id: Optional[str]
-    user_name: Optional[str]
-    seg_labels: str
+class User(BaseModel):
+    userid: str
+    name: Optional[str]
+    pwd: str
+    email: Optional[str]
+    phone: Optional[str]
+    gender: Optional[str]
+    invite_code: Optional[str]
+    role: Optional[str]
