@@ -1,8 +1,8 @@
 import os
 import json
-from tinydb import TinyDB
 from fastapi import APIRouter, Header
 from api.models.body import response_body, User
+from api.models.db_init import ensure_db
 import asyncio
 
 router = APIRouter()
@@ -12,8 +12,7 @@ apply_lock = asyncio.Lock()
 with open('./api/app_config.json') as f:
     app_config = json.load(f)
 
-db_name = 'db/user_db.json'
-user_db = TinyDB(db_name)
+user_db = ensure_db('user_db.json')
 
 @router.post("/apply_user")
 async def apply(user: User):
