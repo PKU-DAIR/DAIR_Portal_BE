@@ -9,8 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.models.body import response_body, User
 from api.controllers.user import router as user_router
 
-
-
 with open('./api/app_config.json') as f:
     app_config = json.load(f)
 
