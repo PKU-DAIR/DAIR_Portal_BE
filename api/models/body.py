@@ -21,8 +21,18 @@ class User(BaseModel):
     userid: str
     name: Optional[str] = None
     pwd: str
+    avatar: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
     gender: Optional[str] = None
     invite_code: Optional[str] = None
     role: Optional[str] = None
+
+class UserInfo(User):
+    userid: str = None
+    pwd: str = None
+
+class UserSecurityInfo(BaseModel):
+    userid: str = None
+    pwd: str
+    confirm_pwd: str

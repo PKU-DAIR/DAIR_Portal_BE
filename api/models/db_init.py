@@ -11,3 +11,4 @@ def ensure_db(file_name):
             f.write('')
     db = TinyDB(path_name)
     return db
+
