@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 
@@ -73,3 +73,31 @@ class AwardItem(BaseModel):
 class AwardLevel(BaseModel):
     id: str = None
     level: str = None
+
+
+class MemberAward(BaseModel):
+    competitionName: str
+    level: str
+    session: str
+    date: str
+    region: str
+
+
+class MemberInfo(BaseModel):
+    id: str = None
+    name: str
+    grade: str
+    session: str
+    major: str
+    title: str
+    toWhere: str
+    postAddress: str
+    educations: List[Edu]
+    teams: List[Team]
+    groups: List[Group]
+    introduction: str
+    photo: str = None
+    userid: Optional[str] = None
+    awards: List[MemberAward]
+    email: str
+    mobile: str

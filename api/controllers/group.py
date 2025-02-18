@@ -2,7 +2,7 @@ import os
 import json
 import uuid
 from tinydb import Query
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, File
 from api.models.body import response_body, Group
 from api.models.db_init import ensure_db
 from api.models.verify_tool import valid_user

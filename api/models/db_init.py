@@ -12,3 +12,10 @@ def ensure_db(file_name):
     db = TinyDB(path_name)
     return db
 
+
+def ensure_folder(dir):
+    dir_path = os.path.join('./', dir)
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+        return 1
+    return 0

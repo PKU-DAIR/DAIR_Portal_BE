@@ -14,6 +14,7 @@ from api.controllers.edu import router as edu_router
 from api.controllers.team import router as team_router
 from api.controllers.towhere import router as towhere_router
 from api.controllers.award import router as award_router
+from api.controllers.member import router as member_router
 
 with open('./api/app_config.json') as f:
     app_config = json.load(f)
@@ -35,6 +36,7 @@ app.include_router(edu_router)
 app.include_router(team_router)
 app.include_router(towhere_router)
 app.include_router(award_router)
+app.include_router(member_router)
 
 @app.get("/")
 def home():
