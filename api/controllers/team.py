@@ -1,0 +1,65 @@
+import os
+import json
+import uuid
+from tinydb import Query
+from fastapi import APIRouter, Header
+from api.models.body import response_body, Team
+from api.models.db_init import ensure_db
+from api.models.verify_tool import valid_user
+import asyncio
+
+router = APIRouter()
+
+team_lock = asyncio.Lock()
+
+with open('./api/app_config.json') as f:
+    app_config = json.load(f)
+
+team_db = ensure_db('team_db.json')
+
+
+@router.get("/get_teams")
+async def get_teams(api_key=Header(None)):
+    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
+    if not valid_status:
+        return response_body(code=403, status='failed', message=valid_info['message'])
+    role = valid_info['role']
+    if role.find('admin') < 0:
+        return response_body(code=403, status='failed', message='permission denied')
+    async with team_lock:
+        all_data = team_db.all()
+    return response_body(code=200, status='success', data=all_data)
+
+
+@router.post("/add_team")
+async def add_team(team: Team, api_key=Header(None)):
+    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
+    if not valid_status:
+        return response_body(code=403, status='failed', message=valid_info['message'])
+    role = valid_info['role']
+    if role.find('admin') < 0:
+        return response_body(code=403, status='failed', message='permission denied')
+    async with team_lock:
+        team_data = team.dict()
+        if team_db.search(lambda x: x['name'] == team_data['name']):
+            return response_body(code=4001, status='failed', message='Team already exists')
+        team_data['id'] = str(uuid.uuid4())
+        team_db.insert(team_data)
+    return response_body(code=200, status='success', message='Team added successfully', data=team_data)
+
+
+@router.post("/remove_team")
+async def remove_team(team: Team, api_key=Header(None)):
+    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
+    if not valid_status:
+        return response_body(code=403, status='failed', message=valid_info['message'])
+    role = valid_info['role']
+    if role.find('admin') < 0:
+        return response_body(code=403, status='failed', message='permission denied')
+    async with team_lock:
+        TeamQuery = Query()
+        result = team_db.search(TeamQuery.id == team.id)
+        if len(result) == 0:
+            return response_body(code=4004, status='failed', message='Team does not exist')
+        team_db.remove(TeamQuery.id == team.id)
+    return response_body(code=200, status='success', message='Team removed successfully')

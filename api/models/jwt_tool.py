@@ -10,11 +10,12 @@ def create_jwt(obj: dict, key, algorithm='HS256'):
     }  # jwt的头部，包含了类型和算法的指定
 
     payload = obj
-    payload['exp'] = datetime.datetime.now() + datetime.timedelta(days=14)
+    exp = datetime.datetime.now() + datetime.timedelta(days=14)
+    payload['exp'] = exp
 
     token = jwt.encode(headers=headers, payload=payload,
                        algorithm=algorithm, key=key)  # 对上面内容进行加密，这里的key就是加的盐
-    return token
+    return token, exp.timestamp()
 
 
 def decode_jwt(token, key, algorithms=['HS256']):

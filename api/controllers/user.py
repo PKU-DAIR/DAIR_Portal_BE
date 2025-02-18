@@ -71,9 +71,9 @@ async def login(user: User):
         role = result[0]['role']
         if role is None:
             role = 'user'
-        token = create_jwt(
+        token, exp = create_jwt(
             {'userid': user_data['userid'], 'role': role}, key=app_config['jwt_key'])
-        return response_body(data={'token': token, 'userid': user_data['userid'], 'role': role})
+        return response_body(data={'token': token, 'userid': user_data['userid'], 'role': role, 'exp': exp})
 
 
 @router.get("/info_me")
@@ -88,11 +88,12 @@ async def get_my_info(api_key=Header(None)):
         if len(result) == 0:
             user = UserInfo().dict()
             result.append(user)
+        result = result[0].copy()
         remove_key = ['pwd', 'avatar']
         for key in remove_key:
-            del result[0][key]
+            del result[key]
 
-    return response_body(code=200, data=result[0])
+    return response_body(code=200, data=result)
 
 
 @router.post("/update_me")
@@ -113,10 +114,11 @@ async def update_myself(user: UserInfo, api_key=Header(None)):
         User = Query()
         user_db.update(final_data, User.userid == userid)
         result = user_db.search(User.userid == userid)
+        result = result[0].copy()
         for key in remove_key:
-            del result[0][key]
+            del result[key]
 
-    return response_body(code=200, status='success', message='Update user info successfully', data=result[0])
+    return response_body(code=200, status='success', message='Update user info successfully', data=result)
 
 
 @router.post("/update_pwd")
@@ -158,3 +160,100 @@ def get_users(api_key=Header(None)):
         data['pwd'] = ""
     res = response_body(data=all_data)
     return res()
+
+
+@router.get("/user/avatar")
+async def get_user_avatar(id, api_key=Header(None)):
+    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
+    if not valid_status:
+        return response_body(code=403, status='failed', message=valid_info['message'])
+    role = valid_info['role']
+    if role.find('admin') < 0:
+        return response_body(code=403, status='failed', message='permission denied')
+    async with apply_lock:
+        User = Query()
+        result = user_db.search(User.userid == id)
+        if len(result) == 0:
+            return response_body(code=200, data="")
+        result = result[0].copy()
+
+    return response_body(code=200, data=result['avatar'])
+
+
+@router.get("/user/get_users_roles")
+def get_users(api_key=Header(None)):
+    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
+    if not valid_status:
+        return response_body(code=403, status='failed', message=valid_info['message'])
+    role = valid_info['role']
+    if role.find('admin') < 0:
+        return response_body(code=403, status='failed', message='permission denied')
+    roles = [
+        {"id": "user", "name": "User"}, {"id": "admin", "name": "Admin"}
+    ]
+    res = response_body(data=roles)
+    return res()
+
+
+@router.post("/add/role")
+async def add_user_role(user: UserInfo, api_key=Header(None)):
+    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
+    if not valid_status:
+        return response_body(code=403, status='failed', message=valid_info['message'])
+    role = valid_info['role']
+    if role.find('admin') < 0:
+        return response_body(code=403, status='failed', message='permission denied')
+    userid = user.userid
+    addRole = user.role
+    async with apply_lock:
+        User = Query()
+        ori_role = user_db.search(User.userid == userid)[0]['role']
+        if ori_role is None:
+            ori_role = addRole
+        elif ori_role.find(addRole) < 0:
+            ori_role = ori_role.split(',')
+            ori_role.append(addRole)
+            ori_role = ','.join(ori_role)
+
+        user_db.update({'role': ori_role}, User.userid == userid)
+        result = user_db.search(User.userid == userid)
+        result = result[0].copy()
+        remove_key = ['pwd', 'avatar']
+        for key in remove_key:
+            del result[key]
+
+    return response_body(code=200, status='success', message='Update user info successfully', data=result)
+
+
+@router.post("/del/role")
+async def remove_user_role(user: UserInfo, api_key=Header(None)):
+    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
+    if not valid_status:
+        return response_body(code=403, status='failed', message=valid_info['message'])
+    role = valid_info['role']
+    if role.find('admin') < 0:
+        return response_body(code=403, status='failed', message='permission denied')
+    userid = user.userid
+    delRole = user.role
+    async with apply_lock:
+        User = Query()
+        ori_role = user_db.search(User.userid == userid)[0]['role']
+        if ori_role is None:
+            new_role = []
+        else:
+            new_role = []
+            ori_role = ori_role.split(',')
+            for role in ori_role:
+                if role == delRole:
+                    continue
+                new_role.append(role)
+        new_role = ','.join(new_role)
+
+        user_db.update({'role': new_role}, User.userid == userid)
+        result = user_db.search(User.userid == userid)
+        result = result[0].copy()
+        remove_key = ['pwd', 'avatar']
+        for key in remove_key:
+            del result[key]
+
+    return response_body(code=200, status='success', message='Update user info successfully', data=result)

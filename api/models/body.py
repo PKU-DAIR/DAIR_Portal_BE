@@ -28,11 +28,48 @@ class User(BaseModel):
     invite_code: Optional[str] = None
     role: Optional[str] = None
 
+
 class UserInfo(User):
     userid: str = None
     pwd: str = None
+
 
 class UserSecurityInfo(BaseModel):
     userid: str = None
     pwd: str
     confirm_pwd: str
+
+
+class Major(BaseModel):
+    id: str = None
+    name: str = None
+
+
+class Group(BaseModel):
+    id: str = None
+    name: str = None
+
+
+class Edu(BaseModel):
+    id: str = None
+    name: str = None
+
+
+class Team(BaseModel):
+    id: str = None
+    name: str = None
+
+
+class ToWhere(BaseModel):
+    id: str = None
+    name: str = None
+
+
+class AwardItem(BaseModel):
+    id: str = None
+    name: str = None
+
+
+class AwardLevel(BaseModel):
+    id: str = None
+    level: str = None
