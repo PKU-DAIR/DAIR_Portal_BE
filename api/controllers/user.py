@@ -52,9 +52,9 @@ async def apply(user: User):
 async def login(user: User):
     if user.userid == app_config['root_name'] and user.pwd == app_config['root_pwd']:
         role = 'admin'
-        token = create_jwt(
+        token, exp = create_jwt(
             {'userid': user.userid, 'role': role}, key=app_config['jwt_key'])
-        return response_body(data={'token': token, 'userid': user.pwd, 'role': role})
+        return response_body(data={'token': token, 'userid': user.userid, 'role': role, 'exp': exp})
     user_data = user.dict()
 
     async with user_lock:
@@ -88,6 +88,9 @@ async def get_my_info(api_key=Header(None)):
         result = user_db.search(User.userid == userid)
         if len(result) == 0:
             user = UserInfo().dict()
+            if userid == 'admin':
+                user['userid'] = 'admin'
+                user['role'] = 'admin'
             result.append(user)
         result = result[0].copy()
         remove_key = ['pwd', 'avatar']
