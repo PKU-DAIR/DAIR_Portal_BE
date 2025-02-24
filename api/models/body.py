@@ -59,6 +59,10 @@ class Team(BaseModel):
     id: str = None
     name: str = None
 
+class ClientTeam(BaseModel):
+    id: str = None
+    name: str = None
+    groups: List[Group] = None
 
 class ToWhere(BaseModel):
     id: str = None

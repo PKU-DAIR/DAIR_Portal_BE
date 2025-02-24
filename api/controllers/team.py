@@ -3,7 +3,7 @@ import json
 import uuid
 from tinydb import Query
 from fastapi import APIRouter, Header
-from api.models.body import response_body, Team
+from api.models.body import response_body, Team, ClientTeam
 from api.models.db_init import ensure_db
 from api.models.verify_tool import valid_user
 import asyncio
@@ -11,11 +11,13 @@ import asyncio
 router = APIRouter()
 
 team_lock = asyncio.Lock()
+client_team_lock = asyncio.Lock()
 
 with open('./api/app_config.json') as f:
     app_config = json.load(f)
 
 team_db = ensure_db('team_db.json')
+client_team_db = ensure_db('client_team_db.json')
 
 
 @router.get("/get_teams")
@@ -63,3 +65,63 @@ async def remove_team(team: Team, api_key=Header(None)):
             return response_body(code=4004, status='failed', message='Team does not exist')
         team_db.remove(TeamQuery.id == team.id)
     return response_body(code=200, status='success', message='Team removed successfully')
+
+
+@router.get("/get_client_teams")
+async def get_client_teams():
+    async with client_team_lock:
+        all_data = client_team_db.all()
+    return response_body(code=200, status='success', data=all_data)
+
+
+@router.post("/add_client_team")
+async def add_client_team(team: ClientTeam, api_key=Header(None)):
+    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
+    if not valid_status:
+        return response_body(code=403, status='failed', message=valid_info['message'])
+    role = valid_info['role']
+    if role.find('admin') < 0:
+        return response_body(code=403, status='failed', message='permission denied')
+    async with client_team_lock:
+        team_data = team.dict()
+        if client_team_db.search(lambda x: x['name'] == team_data['name']):
+            return response_body(code=4001, status='failed', message='Team already exists')
+        client_team_db.insert(team_data)
+    return response_body(code=200, status='success', message='Team added successfully', data=team_data)
+
+
+@router.post("/remove_client_team")
+async def remove_client_team(team: Team, api_key=Header(None)):
+    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
+    if not valid_status:
+        return response_body(code=403, status='failed', message=valid_info['message'])
+    role = valid_info['role']
+    if role.find('admin') < 0:
+        return response_body(code=403, status='failed', message='permission denied')
+    async with client_team_lock:
+        TeamQuery = Query()
+        result = client_team_db.search(TeamQuery.name == team.name)
+        if len(result) == 0:
+            return response_body(code=4004, status='failed', message='Team does not exist')
+        client_team_db.remove(TeamQuery.name == team.name)
+    return response_body(code=200, status='success', message='Team removed successfully')
+
+
+@router.post("/add_client_team/group")
+async def update_client_team_group(team: ClientTeam, api_key=Header(None)):
+    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
+    if not valid_status:
+        return response_body(code=403, status='failed', message=valid_info['message'])
+    role = valid_info['role']
+    if role.find('admin') < 0:
+        return response_body(code=403, status='failed', message='permission denied')
+    async with client_team_lock:
+        TeamQuery = Query()
+        team_data = team.dict()
+        result = client_team_db.search(
+            TeamQuery.name == team_data['name'])
+        if len(result) == 0:
+            return response_body(code=4001, status='failed', message='Team does not exist')
+        client_team_db.update({'groups': team_data['groups']},
+                              TeamQuery.name == team_data['name'])
+    return response_body(code=200, status='success', message='Team added successfully', data=team.groups)

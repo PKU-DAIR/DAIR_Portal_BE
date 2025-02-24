@@ -61,7 +61,7 @@ async def login(user: User):
         User = Query()
         result = user_db.search(User.userid == user_data['userid'])
         if len(result) == 0:
-            return response_body(code=4004, status='failed', message='user does not exists')
+            return response_body(code=4004, status='failed', message='user does not exist')
         pwd = user_data['pwd']
         encode_pwd = pwd_prefix + pwd
         encode_pwd = encode_pwd.encode('utf-8')
