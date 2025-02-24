@@ -6,6 +6,7 @@ services:
       - "8000:8000"
     environment:
       - PYTHONPATH=/app
-    # volumes:
-    #   - ./:/app
+    volumes:
+      - /home/ubuntu/pku_dair_data/db:/app/db
+      - /home/ubuntu/pku_dair_data/member_cv:/app/member_cv
     restart: always

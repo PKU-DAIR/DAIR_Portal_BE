@@ -22,8 +22,17 @@ You can set you own `api_key` in `api/app_config.json`, otherwise, the app will 
 
 **Start Server**
 
-```bash
-cd api/
+Decide whether the data storage inside the docker container or in the physical machine.
+
+- docker-compose.yml
+
+If you want to storage the data in the physical machine, please indicate the path in your physical machine.
+Otherwise, please comment the `volumes` attribute in `docker-compose.yml`
+
+```yml
+volumes:
+    - <YOU_PATH>/db:/app/db
+    - <YOU_PATH>/member_cv:/app/member_cv
 ```
 
 ```bash
