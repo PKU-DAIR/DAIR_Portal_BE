@@ -2,10 +2,10 @@ import os
 import json
 import uuid
 from tinydb import Query
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Depends
 from api.models.body import response_body, Team, ClientTeam
 from api.models.db_init import ensure_db
-from api.models.verify_tool import valid_user
+from api.models.verify_tool import valid_user, Auth
 import asyncio
 
 router = APIRouter()
@@ -15,32 +15,27 @@ client_team_lock = asyncio.Lock()
 
 with open('./api/app_config.json') as f:
     app_config = json.load(f)
+auth = Auth(app_config=app_config)
 
 team_db = ensure_db('team_db.json')
 client_team_db = ensure_db('client_team_db.json')
 
 
 @router.get("/get_teams")
-async def get_teams(api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def get_teams(vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with team_lock:
         all_data = team_db.all()
     return response_body(code=200, status='success', data=all_data)
 
 
 @router.post("/add_team")
-async def add_team(team: Team, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def add_team(team: Team, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with team_lock:
         team_data = team.dict()
         if team_db.search(lambda x: x['name'] == team_data['name']):
@@ -51,13 +46,10 @@ async def add_team(team: Team, api_key=Header(None)):
 
 
 @router.post("/remove_team")
-async def remove_team(team: Team, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def remove_team(team: Team, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with team_lock:
         TeamQuery = Query()
         result = team_db.search(TeamQuery.id == team.id)
@@ -75,13 +67,10 @@ async def get_client_teams():
 
 
 @router.post("/add_client_team")
-async def add_client_team(team: ClientTeam, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def add_client_team(team: ClientTeam, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with client_team_lock:
         team_data = team.dict()
         if client_team_db.search(lambda x: x['name'] == team_data['name']):
@@ -91,13 +80,10 @@ async def add_client_team(team: ClientTeam, api_key=Header(None)):
 
 
 @router.post("/remove_client_team")
-async def remove_client_team(team: Team, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def remove_client_team(team: Team, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with client_team_lock:
         TeamQuery = Query()
         result = client_team_db.search(TeamQuery.name == team.name)
@@ -108,13 +94,10 @@ async def remove_client_team(team: Team, api_key=Header(None)):
 
 
 @router.post("/add_client_team/group")
-async def update_client_team_group(team: ClientTeam, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def update_client_team_group(team: ClientTeam, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with client_team_lock:
         TeamQuery = Query()
         team_data = team.dict()

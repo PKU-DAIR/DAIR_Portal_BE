@@ -2,10 +2,10 @@ import os
 import json
 import uuid
 from tinydb import Query
-from fastapi import APIRouter, Header, File
+from fastapi import APIRouter, Header, Depends, File
 from api.models.body import response_body, Group
 from api.models.db_init import ensure_db
-from api.models.verify_tool import valid_user
+from api.models.verify_tool import valid_user, Auth
 import asyncio
 
 router = APIRouter()
@@ -14,31 +14,26 @@ group_lock = asyncio.Lock()
 
 with open('./api/app_config.json') as f:
     app_config = json.load(f)
+auth = Auth(app_config=app_config)
 
 group_db = ensure_db('group_db.json')
 
 
 @router.get("/get_groups")
-async def get_groups(api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def get_groups(vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with group_lock:
         all_data = group_db.all()
     return response_body(code=200, status='success', data=all_data)
 
 
 @router.post("/add_group")
-async def add_group(group: Group, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def add_group(group: Group, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with group_lock:
         group_data = group.dict()
         if group_db.search(lambda x: x['name'] == group_data['name']):
@@ -49,13 +44,10 @@ async def add_group(group: Group, api_key=Header(None)):
 
 
 @router.post("/remove_group")
-async def remove_group(group: Group, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def remove_group(group: Group, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with group_lock:
         GroupQuery = Query()
         result = group_db.search(GroupQuery.id == group.id)

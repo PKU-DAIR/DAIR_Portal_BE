@@ -3,12 +3,12 @@ import json
 import base64
 from tinydb import Query
 from typing import Optional
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Depends
 from api.models.body import response_body, User, UserInfo, UserSecurityInfo
 from api.models.db_init import ensure_db
 from api.models.regular_manager import validate_username
 from api.models.jwt_tool import create_jwt
-from api.models.verify_tool import valid_user
+from api.models.verify_tool import valid_user, Auth
 import asyncio
 
 router = APIRouter()
@@ -19,6 +19,7 @@ pwd_prefix = 'pku_dair'
 
 with open('./api/app_config.json') as f:
     app_config = json.load(f)
+auth = Auth(app_config=app_config)
 
 user_db = ensure_db('user_db.json')
 
@@ -78,10 +79,10 @@ async def login(user: User):
 
 
 @router.get("/info_me")
-async def get_my_info(api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
+async def get_my_info(vft=Depends(auth.is_user)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     userid = valid_info['userid']
     async with user_lock:
         User = Query()
@@ -101,10 +102,10 @@ async def get_my_info(api_key=Header(None)):
 
 
 @router.post("/update_me")
-async def update_myself(user: UserInfo, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
+async def update_myself(user: UserInfo, vft=Depends(auth.is_user)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     userid = valid_info['userid']
     user_data = user.dict()
     remove_key = ['userid', 'pwd', 'invite_code']
@@ -126,10 +127,10 @@ async def update_myself(user: UserInfo, api_key=Header(None)):
 
 
 @router.post("/update_pwd")
-async def update_pwd_when_login(user: UserSecurityInfo, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
+async def update_pwd_when_login(user: UserSecurityInfo, vft=Depends(auth.is_user)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     userid = valid_info['userid']
     pwd = user.pwd
     confirm_pwd = user.confirm_pwd
@@ -152,13 +153,10 @@ async def update_pwd_when_login(user: UserSecurityInfo, api_key=Header(None)):
 
 
 @router.get("/user/get_users")
-def get_users(api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+def get_users(vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     all_data = user_db.all()
     for data in all_data:
         data['pwd'] = ""
@@ -247,13 +245,10 @@ async def list_users_size(
 
 
 @router.get("/user/avatar")
-async def get_user_avatar(id, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def get_user_avatar(id, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with user_lock:
         User = Query()
         result = user_db.search(User.userid == id)
@@ -265,13 +260,10 @@ async def get_user_avatar(id, api_key=Header(None)):
 
 
 @router.get("/user/get_users_roles")
-def get_users(api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+def get_users_roles(vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     roles = [
         {"id": "user", "name": "User"}, {"id": "admin", "name": "Admin"}
     ]
@@ -280,13 +272,10 @@ def get_users(api_key=Header(None)):
 
 
 @router.post("/add/role")
-async def add_user_role(user: UserInfo, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def add_user_role(user: UserInfo, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     userid = user.userid
     addRole = user.role
     async with user_lock:
@@ -310,13 +299,10 @@ async def add_user_role(user: UserInfo, api_key=Header(None)):
 
 
 @router.post("/del/role")
-async def remove_user_role(user: UserInfo, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def remove_user_role(user: UserInfo, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     userid = user.userid
     delRole = user.role
     async with user_lock:

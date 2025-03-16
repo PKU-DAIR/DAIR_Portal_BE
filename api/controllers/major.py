@@ -2,10 +2,10 @@ import os
 import json
 import uuid
 from tinydb import Query
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Depends
 from api.models.body import response_body, Major
 from api.models.db_init import ensure_db
-from api.models.verify_tool import valid_user
+from api.models.verify_tool import valid_user, Auth
 import asyncio
 
 router = APIRouter()
@@ -14,31 +14,26 @@ major_lock = asyncio.Lock()
 
 with open('./api/app_config.json') as f:
     app_config = json.load(f)
+auth = Auth(app_config=app_config)
 
 major_db = ensure_db('major_db.json')
 
 
 @router.get("/get_majors")
-async def get_majors(api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def get_majors(vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with major_lock:
         all_data = major_db.all()
     return response_body(code=200, status='success', data=all_data)
 
 
 @router.post("/add_major")
-async def add_major(major: Major, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def add_major(major: Major, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with major_lock:
         major_data = major.dict()
         if major_db.search(lambda x: x['name'] == major_data['name']):
@@ -49,13 +44,10 @@ async def add_major(major: Major, api_key=Header(None)):
 
 
 @router.post("/remove_major")
-async def remove_major(major: Major, api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+async def remove_major(major: Major, vft=Depends(auth.is_admin)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     async with major_lock:
         MajorQuery = Query()
         result = major_db.search(MajorQuery.id == major.id)

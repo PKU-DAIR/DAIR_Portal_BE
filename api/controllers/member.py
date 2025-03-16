@@ -3,11 +3,11 @@ import json
 import uuid
 from tinydb import Query
 from typing import Optional
-from fastapi import APIRouter, Header, Form, File, UploadFile
+from fastapi import APIRouter, Header, Depends, Form, File, UploadFile
 from api.models.body import response_body, MemberInfo, MemberAward
 from api.models.db_init import ensure_db, ensure_folder
 from api.models.jwt_tool import create_jwt
-from api.models.verify_tool import valid_user
+from api.models.verify_tool import valid_user, Auth
 import asyncio
 import base64
 
@@ -17,6 +17,7 @@ member_lock = asyncio.Lock()
 
 with open('./api/app_config.json') as f:
     app_config = json.load(f)
+auth = Auth(app_config=app_config)
 
 member_db = ensure_db('member_db.json')
 
@@ -156,10 +157,10 @@ async def get_member(
 
 
 @router.get("/get_my_cv")
-async def get_myself(api_key=Header(None)):
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
+async def get_myself(vft=Depends(auth.is_user)):
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
     userid = valid_info['userid']
     async with member_lock:
         MemberQuery = Query()
