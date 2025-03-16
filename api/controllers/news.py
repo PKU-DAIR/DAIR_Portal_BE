@@ -27,21 +27,18 @@ async def list_news(
     search: Optional[str] = None,
     offset: int = 0,
     limit: int = 99999,
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     获取新闻列表（支持模糊搜索和分页）
     search: Optional[str] = Query(None, description="模糊搜索关键字"),
     offset: int = Query(0, description="分页偏移量"),
     limit: int = Query(20, description="每页数量"),
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with news_lock:
         NewsQuery = Query()
@@ -71,17 +68,14 @@ async def list_news(
 @router.get("/get_news")
 async def get_news(
     id: str,
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     获取新闻详情
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with news_lock:
         NewsQuery = Query()
@@ -103,17 +97,14 @@ async def add_news(
     publisher_id: str = Form(...),
     content: str = Form(...),
     banner: UploadFile = File(...),
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     添加新闻
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with news_lock:
         news_id = str(uuid.uuid4())
@@ -149,17 +140,14 @@ async def update_news(
     description: Optional[str] = Form(None),
     content: Optional[str] = Form(None),
     banner: Optional[UploadFile] = File(None),
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     更新新闻信息
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with news_lock:
         NewsQuery = Query()
@@ -208,17 +196,14 @@ async def get_news_banner(id: str):
 @router.get("/remove_news")
 async def delete_news(
     id: str,
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     删除新闻
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with news_lock:
         NewsQuery = Query()

@@ -169,21 +169,18 @@ async def list_users(
     search: Optional[str] = None,
     offset: int = 0,
     limit: int = 20,
-    api_key=Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     获取用户列表（支持模糊搜索和分页）
     search: Optional[str] = Query(None, description="模糊搜索关键字"),
     offset: int = Query(0, description="分页偏移量"),
     limit: int = Query(20, description="每页数量"),
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with user_lock:
         UserQuery = Query()
@@ -213,19 +210,16 @@ async def list_users(
 @router.get("/list_users_size")
 async def list_users_size(
     search: Optional[str] = None,
-    api_key=Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     获取用户总数（支持模糊搜索）
     search: Optional[str] = Query(None, description="模糊搜索关键字"),
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with user_lock:
         UserQuery = Query()

@@ -32,7 +32,7 @@ async def list_members(
     search: Optional[str] = Query(None, description="模糊搜索关键字"),
     offset: int = Query(0, description="分页偏移量"),
     limit: int = Query(20, description="每页数量"),
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
     """
     async with member_lock:
         members = member_db.all()
@@ -60,21 +60,18 @@ async def list_members(
     search: Optional[str] = None,
     offset: int = 0,
     limit: int = 99999,
-    api_key=Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     获取成员列表（支持模糊搜索和分页）
     search: Optional[str] = Query(None, description="模糊搜索关键字"),
     offset: int = Query(0, description="分页偏移量"),
     limit: int = Query(20, description="每页数量"),
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with member_lock:
         MemberQuery = Query()
@@ -108,17 +105,14 @@ async def list_members(
 
 @router.get("/get_member")
 async def get_member(
-    id, api_key: Optional[str] = Header(None)
+    id, vft=Depends(auth.is_admin)
 ):
     """
     获取成员详情
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with member_lock:
         MemberQuery = Query()
@@ -179,17 +173,14 @@ async def get_myself(vft=Depends(auth.is_user)):
 @router.post("/add_member")
 async def add_member(
     member: MemberInfo,
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     添加成员
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with member_lock:
         member_data = member.dict()
@@ -214,17 +205,14 @@ async def add_member(
 @router.post("/update_member")
 async def update_member(
     member: MemberInfo,
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     更新成员信息
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with member_lock:
         MemberQuery = Query()
@@ -248,17 +236,14 @@ async def update_member(
 async def upload_member_avatar(
     id: str = Form(...),
     member_avatar: UploadFile = File(...),
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     上传成员头像
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     # 保存文件
     ensure_folder(f'member_cv/{id}')
@@ -287,17 +272,14 @@ async def get_member_avatar(id):
 @router.get("/remove_member")
 async def delete_member(
     id,
-    api_key: Optional[str] = Header(None)
+    vft=Depends(auth.is_admin)
 ):
     """
     删除成员
     """
-    valid_info, valid_status = valid_user(api_key, app_config['jwt_key'])
-    if not valid_status:
-        return response_body(code=403, status='failed', message=valid_info['message'])
-    role = valid_info['role']
-    if role.find('admin') < 0:
-        return response_body(code=403, status='failed', message='permission denied')
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
 
     async with member_lock:
         MemberQuery = Query()
