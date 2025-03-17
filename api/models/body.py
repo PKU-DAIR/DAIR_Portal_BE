@@ -105,3 +105,36 @@ class MemberInfo(BaseModel):
     awards: List[MemberAward]
     email: str
     mobile: str
+
+class NewsItem(BaseModel):
+    id: str = None
+    title: str
+    description: str = None
+    news_type: str = None
+    publisher_id: str = None
+    content: str = None
+    create_time: str = None
+    update_time: str = None
+
+class PublicationItem(BaseModel):
+    id: Optional[str] = None
+    publisher: Optional[str] = None
+    DOI: Optional[str] = None
+    year: Optional[str] = None
+    createDate: Optional[str] = None
+    source: Optional[str] = None
+    title: Optional[str] = None
+    url: Optional[str] = None
+    booktitle: Optional[str] = None  # 一般是会议名称
+    abstract: Optional[str] = None
+    ISSN: Optional[str] = None
+    language: Optional[str] = None
+    chapter: Optional[str] = None
+    volume: Optional[str] = None
+    number: Optional[str] = None
+    pages: Optional[str] = None
+    school: Optional[str] = None
+    note: Optional[str] = None
+    author: Optional[str] = None
+    entry_type: Optional[str] = None
+    bib: Optional[str] = None

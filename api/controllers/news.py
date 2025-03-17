@@ -1,10 +1,11 @@
 import os
 import json
 import uuid
+import datetime
 from tinydb import Query
 from typing import Optional
 from fastapi import APIRouter, Header, Depends, Form, File, UploadFile
-from api.models.body import response_body
+from api.models.body import response_body, NewsItem
 from api.models.db_init import ensure_db, ensure_folder
 from api.models.jwt_tool import create_jwt
 from api.models.verify_tool import valid_user, Auth
@@ -22,7 +23,7 @@ auth = Auth(app_config=app_config)
 news_db = ensure_db('news_db.json')
 
 
-@router.get("/list_news")
+@router.get("/news/get_news")
 async def list_news(
     search: Optional[str] = None,
     offset: int = 0,
@@ -64,6 +65,115 @@ async def list_news(
         }
     )
 
+@router.get("/list_news_size")
+async def list_news_size(
+    search: Optional[str] = None,
+    limit: int = 99999,
+    vft=Depends(auth.is_admin)
+):
+    """
+    获取推文总数（支持模糊搜索）
+    search: Optional[str] = Query(None, description="模糊搜索关键字"),
+    vft=Depends(auth.is_admin)
+    """
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
+
+    async with news_lock:
+        UserQuery = Query()
+        if search:
+            # 模糊搜索推文名、昵称、邮箱等字段
+            news = news_db.search(
+                (UserQuery.title.search(search)) |
+                (UserQuery.description.search(search)))
+        else:
+            news = news_db.all()
+
+        total_news = len(news) // limit + 1
+
+    return response_body(
+        data=total_news
+    )
+
+@router.get("/news/client/news")
+async def list_client_news(
+    search: Optional[str] = None,
+    offset: int = 0,
+    limit: int = 99999
+):
+    """
+    获取新闻列表或项目列表（支持模糊搜索和分页）
+    search: Optional[str] = Query(None, description="模糊搜索关键字"),
+    offset: int = Query(0, description="分页偏移量"),
+    limit: int = Query(20, description="每页数量"),
+    """
+
+    async with news_lock:
+        NewsQuery = Query()
+        if search:
+            # 模糊搜索标题、描述等字段
+            news_items = news_db.search(
+                (NewsQuery.title.search(search)) |
+                (NewsQuery.description.search(search))
+            )
+        else:
+            news_items = news_db.all()
+
+        news_items = [item for item in news_items if 'news' in item.get("news_type")]
+
+        # 分页逻辑
+        total_news = len(news_items)
+        paginated_news = news_items[offset:offset + limit]
+
+    return response_body(
+        code=200,
+        status='success',
+        data={
+            "list": paginated_news,
+            "total": total_news
+        }
+    )
+
+@router.get("/news/client/projs")
+async def list_client_projs(
+    search: Optional[str] = None,
+    offset: int = 0,
+    limit: int = 99999
+):
+    """
+    获取项目列表或项目列表（支持模糊搜索和分页）
+    search: Optional[str] = Query(None, description="模糊搜索关键字"),
+    offset: int = Query(0, description="分页偏移量"),
+    limit: int = Query(20, description="每页数量"),
+    """
+
+    async with news_lock:
+        NewsQuery = Query()
+        if search:
+            # 模糊搜索标题、描述等字段
+            news_items = news_db.search(
+                (NewsQuery.title.search(search)) |
+                (NewsQuery.description.search(search))
+            )
+        else:
+            news_items = news_db.all()
+
+        news_items = [item for item in news_items if 'projs' in item.get("news_type")]
+
+        # 分页逻辑
+        total_news = len(news_items)
+        paginated_news = news_items[offset:offset + limit]
+
+    return response_body(
+        code=200,
+        status='success',
+        data={
+            "list": paginated_news,
+            "total": total_news
+        }
+    )
+
 
 @router.get("/get_news")
 async def get_news(
@@ -83,67 +193,133 @@ async def get_news(
         if len(result) == 0:
             return response_body(code=404, status='failed', message='News not found')
         news_item = result[0]
-        with open(f'news/{id}/content.json') as f:
-            content = f.read()
+        if os.path.exists(f'news/{id}/content.json'):
+            with open(f'news/{id}/content.json') as f:
+                content = f.read()
+        else:
+            content = "{}"
+        news_item['content'] = json.loads(content)
+
+    return response_body(code=200, status='success', data=news_item)
+
+@router.get("/client/get_news")
+async def get_news(
+    id: str
+):
+    """
+    获取新闻详情
+    """
+    async with news_lock:
+        NewsQuery = Query()
+        result = news_db.search(NewsQuery.id == id)
+        if len(result) == 0:
+            return response_body(code=404, status='failed', message='News not found')
+        news_item = result[0]
+        if os.path.exists(f'news/{id}/content.json'):
+            with open(f'news/{id}/content.json') as f:
+                content = f.read()
+        else:
+            content = "{}"
         news_item['content'] = json.loads(content)
 
     return response_body(code=200, status='success', data=news_item)
 
 
-@router.post("/add_news")
-async def add_news(
-    title: str = Form(...),
-    description: str = Form(...),
-    publisher_id: str = Form(...),
-    content: str = Form(...),
-    banner: UploadFile = File(...),
+@router.post("/news/update")
+async def add_or_update_news(
+    news_item: NewsItem,  # 使用 NewsItem 作为请求体
     vft=Depends(auth.is_admin)
 ):
     """
-    添加新闻
+    添加或更新新闻信息（不包括 banner 图片）
     """
     if not vft[0]:
         return vft[1]
     valid_info = vft[1]
+    userid = valid_info['userid']
 
     async with news_lock:
-        news_id = str(uuid.uuid4())
-        ensure_folder(f'news/{news_id}')
+        if news_item.id:  # 更新新闻
+            NewsQuery = Query()
+            result = news_db.search(NewsQuery.id == news_item.id)
+            if len(result) == 0:
+                return response_body(code=404, status='failed', message='News not found')
 
-        # 保存新闻内容
-        with open(f'news/{news_id}/content.json', 'w', encoding='utf-8') as f:
-            f.write(content)
+            # 更新新闻内容
+            if news_item.content:
+                with open(f'news/{news_item.id}/content.json', 'w', encoding='utf-8') as f:
+                    f.write(json.dumps(news_item.content, ensure_ascii=False))
 
-        # 保存头图
-        banner_path = os.path.join(f'news/{news_id}', 'banner.jpg')
-        with open(banner_path, "wb") as buffer:
-            buffer.write(banner.file.read())
+            # 更新新闻记录
+            update_data = {
+                "title": news_item.title,
+                "news_type": news_item.news_type,
+                "description": news_item.description,
+                "update_time": datetime.datetime.now().isoformat()
+            }
+            news_db.update(update_data, NewsQuery.id == news_item.id)
+            return response_body(code=200, status='success', message='News updated successfully')
 
-        # 插入新闻记录
-        news_data = {
-            "id": news_id,
-            "title": title,
-            "description": description,
-            "publisher_id": publisher_id,
-            "publish_time": datetime.datetime.now().isoformat(),
-            "update_time": datetime.datetime.now().isoformat()
-        }
-        news_db.insert(news_data)
+        else:  # 新增新闻
+            news_id = str(uuid.uuid4())
+            ensure_folder(f'news/{news_id}')
 
-    return response_body(code=200, status='success', message='News added successfully', data=news_data)
+            # 保存新闻内容
+            if news_item.content:
+                with open(f'news/{news_id}/content.json', 'w', encoding='utf-8') as f:
+                    f.write(json.dumps(news_item.content, ensure_ascii=False))
 
+            # 插入新闻记录
+            news_data = {
+                "id": news_id,
+                "title": news_item.title,
+                "news_type": news_item.news_type,
+                "description": news_item.description,
+                "publisher_id": userid,
+                "publish_time": datetime.datetime.now().isoformat(),
+                "update_time": datetime.datetime.now().isoformat()
+            }
+            news_db.insert(news_data)
+            return response_body(code=200, status='success', message='News added successfully', data=news_data)
 
-@router.post("/update_news")
-async def update_news(
-    id: str = Form(...),
-    title: Optional[str] = Form(None),
-    description: Optional[str] = Form(None),
-    content: Optional[str] = Form(None),
-    banner: Optional[UploadFile] = File(None),
+@router.post("/news/update/info")
+async def update_news_info(
+    news_item: NewsItem,  # 使用 NewsItem 作为请求体
     vft=Depends(auth.is_admin)
 ):
     """
-    更新新闻信息
+    添加或更新新闻信息（不包括 banner 图片）
+    """
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
+    userid = valid_info['userid']
+
+    async with news_lock:
+        if news_item.id:  # 更新新闻
+            NewsQuery = Query()
+            result = news_db.search(NewsQuery.id == news_item.id)
+            if len(result) == 0:
+                return response_body(code=404, status='failed', message='News not found')
+
+            # 更新新闻记录
+            update_data = {
+                "title": news_item.title,
+                "news_type": news_item.news_type,
+                "description": news_item.description,
+                "update_time": datetime.datetime.now().isoformat()
+            }
+            news_db.update(update_data, NewsQuery.id == news_item.id)
+            return response_body(code=200, status='success', message='News updated successfully')
+
+@router.post("/upload_banner")
+async def upload_banner(
+    id: str = Form(...),  # 新闻 ID
+    banner: UploadFile = File(...),  # 上传的 banner 图片
+    vft=Depends(auth.is_admin)
+):
+    """
+    上传或更新新闻的 banner 图片
     """
     if not vft[0]:
         return vft[1]
@@ -155,27 +331,12 @@ async def update_news(
         if len(result) == 0:
             return response_body(code=404, status='failed', message='News not found')
 
-        # 更新新闻内容
-        if content:
-            with open(f'news/{id}/content.json', 'w', encoding='utf-8') as f:
-                f.write(content)
+        # 保存或更新 banner 图片
+        banner_path = os.path.join(f'news/{id}', 'banner.jpg')
+        with open(banner_path, "wb") as buffer:
+            buffer.write(banner.file.read())
 
-        # 更新头图
-        if banner:
-            banner_path = os.path.join(f'news/{id}', 'banner.jpg')
-            with open(banner_path, "wb") as buffer:
-                buffer.write(banner.file.read())
-
-        # 更新新闻记录
-        update_data = {}
-        if title:
-            update_data['title'] = title
-        if description:
-            update_data['description'] = description
-        update_data['update_time'] = datetime.datetime.now().isoformat()
-        news_db.update(update_data, NewsQuery.id == id)
-
-    return response_body(code=200, status='success', message='News updated successfully')
+    return response_body(code=200, status='success', message='Banner uploaded successfully')
 
 
 @router.get("/get_news_banner")
