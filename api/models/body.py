@@ -27,6 +27,8 @@ class User(BaseModel):
     gender: Optional[str] = None
     invite_code: Optional[str] = None
     role: Optional[str] = None
+    apply_time: Optional[str] = None
+    last_login: Optional[str] = None
 
 
 class UserInfo(User):

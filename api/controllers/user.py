@@ -1,11 +1,12 @@
 import os
 import json
 import base64
+import datetime
 from tinydb import Query
 from typing import Optional
-from fastapi import APIRouter, Header, Depends
+from fastapi import APIRouter, Header, Depends, Form, File, UploadFile
 from api.models.body import response_body, User, UserInfo, UserSecurityInfo
-from api.models.db_init import ensure_db
+from api.models.db_init import ensure_db, ensure_folder
 from api.models.regular_manager import validate_username
 from api.models.jwt_tool import create_jwt
 from api.models.verify_tool import valid_user, Auth
@@ -44,6 +45,7 @@ async def apply(user: User):
         encode_pwd = base64.b64encode(encode_pwd)
         encode_pwd = encode_pwd.decode('utf-8')
         user_data['pwd'] = encode_pwd
+        user_data['apply_time'] = datetime.datetime.now().isoformat()
         user_db.insert(user_data)
 
     return response_body(code=200, status='success', message='User registered successfully', data=user_data)
@@ -75,6 +77,8 @@ async def login(user: User):
             role = 'user'
         token, exp = create_jwt(
             {'userid': user_data['userid'], 'role': role}, key=app_config['jwt_key'])
+        user_db.update({'last_login': datetime.datetime.now(
+        ).isoformat()}, User.userid == user_data['userid'])
         return response_body(data={'token': token, 'userid': user_data['userid'], 'role': role, 'exp': exp})
 
 
@@ -96,7 +100,8 @@ async def get_my_info(vft=Depends(auth.is_user)):
         result = result[0].copy()
         remove_key = ['pwd', 'avatar']
         for key in remove_key:
-            del result[key]
+            if key in result:
+                del result[key]
 
     return response_body(code=200, data=result)
 
@@ -108,9 +113,10 @@ async def update_myself(user: UserInfo, vft=Depends(auth.is_user)):
     valid_info = vft[1]
     userid = valid_info['userid']
     user_data = user.dict()
-    remove_key = ['userid', 'pwd', 'invite_code']
+    remove_key = ['userid', 'pwd', 'invite_code', 'apply_time', 'last_login']
     for key in remove_key:
-        del user_data[key]
+        if key in user_data:
+            del user_data[key]
     final_data = {}
     for key in user_data:
         if user_data[key] is not None:
@@ -121,7 +127,8 @@ async def update_myself(user: UserInfo, vft=Depends(auth.is_user)):
         result = user_db.search(User.userid == userid)
         result = result[0].copy()
         for key in remove_key:
-            del result[key]
+            if key in result:
+                del result[key]
 
     return response_body(code=200, status='success', message='Update user info successfully', data=result)
 
@@ -238,19 +245,59 @@ async def list_users_size(
     )
 
 
-@router.get("/user/avatar")
-async def get_user_avatar(id, vft=Depends(auth.is_admin)):
+@router.post("/upload_avatar")
+async def upload_avatar(
+    user_avatar: UploadFile = File(...),
+    vft=Depends(auth.is_user)
+):
+    """
+    上传用户头像
+    """
     if not vft[0]:
         return vft[1]
     valid_info = vft[1]
-    async with user_lock:
-        User = Query()
-        result = user_db.search(User.userid == id)
-        if len(result) == 0:
-            return response_body(code=200, data="")
-        result = result[0].copy()
+    id = valid_info['userid']
+    # 保存文件
+    ensure_folder(f'user/{id}')
+    file_path = os.path.join(f'user/{id}', 'avatar.jpg')
+    with open(file_path, "wb") as buffer:
+        buffer.write(user_avatar.file.read())
 
-    return response_body(code=200, data=result['avatar'])
+    return response_body(code=200, status='success', message='Avatar uploaded successfully', data={"file_path": file_path})
+
+
+@router.get("/user/avatar")
+async def get_user_avatar(id):
+    """
+    获取用户头像
+    """
+    file_path = os.path.join(f'user/{id}', 'avatar.jpg')
+    if not os.path.exists(file_path):
+        return response_body(code=404, status='failed', message='Avatar not found')
+
+    with open(file_path, "rb") as f:
+        avatar_data = base64.b64encode(f.read()).decode('utf-8')
+
+    return response_body(code=200, status='success', data=f'data:image/jpeg;base64,{avatar_data}')
+
+@router.get("/me/avatar")
+async def get_my_avatar(vft=Depends(auth.is_user)):
+    """
+    获取用户头像
+    """
+    if not vft[0]:
+        return vft[1]
+    valid_info = vft[1]
+    id = valid_info['userid']
+    
+    file_path = os.path.join(f'user/{id}', 'avatar.jpg')
+    if not os.path.exists(file_path):
+        return response_body(code=404, status='failed', message='Avatar not found')
+
+    with open(file_path, "rb") as f:
+        avatar_data = base64.b64encode(f.read()).decode('utf-8')
+
+    return response_body(code=200, status='success', data=f'data:image/jpeg;base64,{avatar_data}')
 
 
 @router.get("/user/get_users_roles")
@@ -287,7 +334,8 @@ async def add_user_role(user: UserInfo, vft=Depends(auth.is_admin)):
         result = result[0].copy()
         remove_key = ['pwd', 'avatar']
         for key in remove_key:
-            del result[key]
+            if key in result:
+                del result[key]
 
     return response_body(code=200, status='success', message='Update user info successfully', data=result)
 
@@ -318,6 +366,7 @@ async def remove_user_role(user: UserInfo, vft=Depends(auth.is_admin)):
         result = result[0].copy()
         remove_key = ['pwd', 'avatar']
         for key in remove_key:
-            del result[key]
+            if key in result:
+                del result[key]
 
     return response_body(code=200, status='success', message='Update user info successfully', data=result)

@@ -174,6 +174,84 @@ async def list_client_projs(
         }
     )
 
+@router.get("/news/client/top_news")
+async def list_client_top_news(
+    search: Optional[str] = None,
+    offset: int = 0,
+    limit: int = 99999
+):
+    """
+    获取新闻列表或项目列表（支持模糊搜索和分页）
+    search: Optional[str] = Query(None, description="模糊搜索关键字"),
+    offset: int = Query(0, description="分页偏移量"),
+    limit: int = Query(20, description="每页数量"),
+    """
+
+    async with news_lock:
+        NewsQuery = Query()
+        if search:
+            # 模糊搜索标题、描述等字段
+            news_items = news_db.search(
+                (NewsQuery.title.search(search)) |
+                (NewsQuery.description.search(search))
+            )
+        else:
+            news_items = news_db.all()
+
+        news_items = [item for item in news_items if 'top_news' in item.get("news_type")]
+
+        # 分页逻辑
+        total_news = len(news_items)
+        paginated_news = news_items[offset:offset + limit]
+
+    return response_body(
+        code=200,
+        status='success',
+        data={
+            "list": paginated_news,
+            "total": total_news
+        }
+    )
+
+@router.get("/news/client/top_projs")
+async def list_client_top_projs(
+    search: Optional[str] = None,
+    offset: int = 0,
+    limit: int = 99999
+):
+    """
+    获取项目列表或项目列表（支持模糊搜索和分页）
+    search: Optional[str] = Query(None, description="模糊搜索关键字"),
+    offset: int = Query(0, description="分页偏移量"),
+    limit: int = Query(20, description="每页数量"),
+    """
+
+    async with news_lock:
+        NewsQuery = Query()
+        if search:
+            # 模糊搜索标题、描述等字段
+            news_items = news_db.search(
+                (NewsQuery.title.search(search)) |
+                (NewsQuery.description.search(search))
+            )
+        else:
+            news_items = news_db.all()
+
+        news_items = [item for item in news_items if 'top_projs' in item.get("news_type")]
+
+        # 分页逻辑
+        total_news = len(news_items)
+        paginated_news = news_items[offset:offset + limit]
+
+    return response_body(
+        code=200,
+        status='success',
+        data={
+            "list": paginated_news,
+            "total": total_news
+        }
+    )
+
 
 @router.get("/get_news")
 async def get_news(
