@@ -8,7 +8,7 @@ from fastapi import APIRouter, Header, Depends, Form, File, UploadFile
 from api.models.body import response_body, PublicationItem
 from api.models.db_init import ensure_db, ensure_folder
 from api.models.jwt_tool import create_jwt
-from api.models.verify_tool import valid_user, Auth
+from api.models.verify_tool import Auth
 import asyncio
 import base64
 
@@ -60,17 +60,13 @@ async def list_publications(
     )
 
 @router.get("/publications/get_publication")
+@auth.require_admin()
 async def get_publication(
-    id: str,
-    vft=Depends(auth.is_admin)
+    id: str
 ):
     """
     获取论文详情
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with pub_lock:
         PubQuery = Query()
         result = pub_db.search(PubQuery.id == id)
@@ -81,18 +77,13 @@ async def get_publication(
     return response_body(code=200, status='success', data=pub_item)
 
 @router.post("/publications/update")
+@auth.require_admin()
 async def add_or_update_publication(
-    pub_item: PublicationItem,  # 使用 PublicationItem 作为请求体
-    vft=Depends(auth.is_admin)
+    pub_item: PublicationItem  # 使用 PublicationItem 作为请求体
 ):
     """
     添加或更新论文信息
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-    userid = valid_info['userid']
-
     async with pub_lock:
         if pub_item.id:  # 更新论文
             PubQuery = Query()
@@ -157,17 +148,13 @@ async def add_or_update_publication(
             return response_body(code=200, status='success', message='Publication added successfully', data=pub_data)
 
 @router.delete("/publications/remove")
+@auth.require_admin()
 async def delete_publication(
-    id: str,
-    vft=Depends(auth.is_admin)
+    id: str
 ):
     """
     删除论文
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with pub_lock:
         PubQuery = Query()
         result = pub_db.search(PubQuery.id == id)

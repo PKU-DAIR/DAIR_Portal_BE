@@ -9,7 +9,7 @@ from api.models.body import response_body, User, UserInfo, UserSecurityInfo
 from api.models.db_init import ensure_db, ensure_folder
 from api.models.regular_manager import validate_username
 from api.models.jwt_tool import create_jwt
-from api.models.verify_tool import valid_user, Auth
+from api.models.verify_tool import Auth
 import asyncio
 
 router = APIRouter()
@@ -83,10 +83,8 @@ async def login(user: User):
 
 
 @router.get("/info_me")
-async def get_my_info(vft=Depends(auth.is_user)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_user()
+async def get_my_info(valid_info=None):
     userid = valid_info['userid']
     async with user_lock:
         User = Query()
@@ -107,10 +105,8 @@ async def get_my_info(vft=Depends(auth.is_user)):
 
 
 @router.post("/update_me")
-async def update_myself(user: UserInfo, vft=Depends(auth.is_user)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_user()
+async def update_myself(user: UserInfo, valid_info=None):
     userid = valid_info['userid']
     user_data = user.dict()
     remove_key = ['userid', 'pwd', 'invite_code', 'apply_time', 'last_login']
@@ -134,10 +130,8 @@ async def update_myself(user: UserInfo, vft=Depends(auth.is_user)):
 
 
 @router.post("/update_pwd")
-async def update_pwd_when_login(user: UserSecurityInfo, vft=Depends(auth.is_user)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_user()
+async def update_pwd_when_login(user: UserSecurityInfo, valid_info=None):
     userid = valid_info['userid']
     pwd = user.pwd
     confirm_pwd = user.confirm_pwd
@@ -160,10 +154,8 @@ async def update_pwd_when_login(user: UserSecurityInfo, vft=Depends(auth.is_user
 
 
 @router.get("/user/get_users")
-def get_users(vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def get_users(valid_info=None):
     all_data = user_db.all()
     for data in all_data:
         data['pwd'] = ""
@@ -172,23 +164,19 @@ def get_users(vft=Depends(auth.is_admin)):
 
 
 @router.get("/list_users")
+@auth.require_admin()
 async def list_users(
     search: Optional[str] = None,
     offset: int = 0,
-    limit: int = 20,
-    vft=Depends(auth.is_admin)
+    limit: int = 20
 ):
     """
     获取用户列表（支持模糊搜索和分页）
     search: Optional[str] = Query(None, description="模糊搜索关键字"),
     offset: int = Query(0, description="分页偏移量"),
     limit: int = Query(20, description="每页数量"),
-    vft=Depends(auth.is_admin)
+    
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with user_lock:
         UserQuery = Query()
         if search:
@@ -215,19 +203,15 @@ async def list_users(
 
 
 @router.get("/list_users_size")
+@auth.require_admin()
 async def list_users_size(
-    search: Optional[str] = None,
-    vft=Depends(auth.is_admin)
+    search: Optional[str] = None
 ):
     """
     获取用户总数（支持模糊搜索）
     search: Optional[str] = Query(None, description="模糊搜索关键字"),
-    vft=Depends(auth.is_admin)
+    
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with user_lock:
         UserQuery = Query()
         if search:
@@ -246,16 +230,14 @@ async def list_users_size(
 
 
 @router.post("/upload_avatar")
+@auth.require_user()
 async def upload_avatar(
     user_avatar: UploadFile = File(...),
-    vft=Depends(auth.is_user)
+    valid_info=None
 ):
     """
     上传用户头像
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
     id = valid_info['userid']
     # 保存文件
     ensure_folder(f'user/{id}')
@@ -280,16 +262,15 @@ async def get_user_avatar(id):
 
     return response_body(code=200, status='success', data=f'data:image/jpeg;base64,{avatar_data}')
 
+
 @router.get("/me/avatar")
-async def get_my_avatar(vft=Depends(auth.is_user)):
+@auth.require_user()
+async def get_my_avatar(valid_info=None):
     """
     获取用户头像
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
     id = valid_info['userid']
-    
+
     file_path = os.path.join(f'user/{id}', 'avatar.jpg')
     if not os.path.exists(file_path):
         return response_body(code=404, status='failed', message='Avatar not found')
@@ -301,10 +282,8 @@ async def get_my_avatar(vft=Depends(auth.is_user)):
 
 
 @router.get("/user/get_users_roles")
-def get_users_roles(vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def get_users_roles():
     roles = [
         {"id": "user", "name": "User"}, {"id": "admin", "name": "Admin"}
     ]
@@ -313,10 +292,8 @@ def get_users_roles(vft=Depends(auth.is_admin)):
 
 
 @router.post("/add/role")
-async def add_user_role(user: UserInfo, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def add_user_role(user: UserInfo):
     userid = user.userid
     addRole = user.role
     async with user_lock:
@@ -341,10 +318,8 @@ async def add_user_role(user: UserInfo, vft=Depends(auth.is_admin)):
 
 
 @router.post("/del/role")
-async def remove_user_role(user: UserInfo, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def remove_user_role(user: UserInfo):
     userid = user.userid
     delRole = user.role
     async with user_lock:

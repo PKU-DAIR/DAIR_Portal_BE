@@ -5,7 +5,7 @@ from tinydb import Query
 from fastapi import APIRouter, Header, Depends
 from api.models.body import response_body, Edu
 from api.models.db_init import ensure_db
-from api.models.verify_tool import valid_user, Auth
+from api.models.verify_tool import Auth
 import asyncio
 
 router = APIRouter()
@@ -20,20 +20,16 @@ edu_db = ensure_db('edu_db.json')
 
 
 @router.get("/get_edus")
-async def get_edus(vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def get_edus():
     async with edu_lock:
         all_data = edu_db.all()
     return response_body(code=200, status='success', data=all_data)
 
 
 @router.post("/add_edu")
-async def add_edu(edu: Edu, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def add_edu(edu: Edu):
     async with edu_lock:
         edu_data = edu.dict()
         if edu_db.search(lambda x: x['name'] == edu_data['name']):
@@ -44,10 +40,8 @@ async def add_edu(edu: Edu, vft=Depends(auth.is_admin)):
 
 
 @router.post("/remove_edu")
-async def remove_edu(edu: Edu, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def remove_edu(edu: Edu):
     async with edu_lock:
         EduQuery = Query()
         result = edu_db.search(EduQuery.id == edu.id)

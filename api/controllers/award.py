@@ -5,7 +5,7 @@ from tinydb import Query
 from fastapi import APIRouter, Header, Depends
 from api.models.body import response_body, AwardItem, AwardLevel
 from api.models.db_init import ensure_db
-from api.models.verify_tool import valid_user, Auth
+from api.models.verify_tool import Auth
 import asyncio
 
 router = APIRouter()
@@ -24,20 +24,16 @@ award_level_db = ensure_db('award_level_db.json')
 
 
 @router.get("/get_award_levels")
-async def get_award_levels(vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def get_award_levels():
     async with award_level_lock:
         all_data = award_level_db.all()
     return response_body(code=200, status='success', data=all_data)
 
 
 @router.post("/add_award_level")
-async def add_award_level(award_level: AwardLevel, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def add_award_level(award_level: AwardLevel):
     async with award_level_lock:
         award_level_data = award_level.dict()
         if award_level_db.search(lambda x: x['level'] == award_level_data['level']):
@@ -48,10 +44,8 @@ async def add_award_level(award_level: AwardLevel, vft=Depends(auth.is_admin)):
 
 
 @router.post("/remove_award_level")
-async def remove_award_level(award_level: AwardLevel, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def remove_award_level(award_level: AwardLevel):
     async with award_level_lock:
         AwardLevelQuery = Query()
         result = award_level_db.search(AwardLevelQuery.id == award_level.id)
@@ -62,20 +56,16 @@ async def remove_award_level(award_level: AwardLevel, vft=Depends(auth.is_admin)
 
 
 @router.get("/get_award_items")
-async def get_award_items(vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def get_award_items():
     async with award_item_lock:
         all_data = award_item_db.all()
     return response_body(code=200, status='success', data=all_data)
 
 
 @router.post("/add_award_item")
-async def add_award_item(award_item: AwardItem, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def add_award_item(award_item: AwardItem):
     async with award_item_lock:
         award_item_data = award_item.dict()
         if award_item_db.search(lambda x: x['name'] == award_item_data['name']):
@@ -86,10 +76,8 @@ async def add_award_item(award_item: AwardItem, vft=Depends(auth.is_admin)):
 
 
 @router.post("/remove_award_item")
-async def remove_award_item(award_item: AwardItem, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def remove_award_item(award_item: AwardItem):
     async with award_item_lock:
         AwardItemQuery = Query()
         result = award_item_db.search(AwardItemQuery.id == award_item.id)

@@ -5,7 +5,7 @@ from tinydb import Query
 from fastapi import APIRouter, Header, Depends
 from api.models.body import response_body, Team, ClientTeam
 from api.models.db_init import ensure_db
-from api.models.verify_tool import valid_user, Auth
+from api.models.verify_tool import Auth
 import asyncio
 
 router = APIRouter()
@@ -22,20 +22,16 @@ client_team_db = ensure_db('client_team_db.json')
 
 
 @router.get("/get_teams")
-async def get_teams(vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def get_teams():
     async with team_lock:
         all_data = team_db.all()
     return response_body(code=200, status='success', data=all_data)
 
 
 @router.post("/add_team")
-async def add_team(team: Team, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def add_team(team: Team):
     async with team_lock:
         team_data = team.dict()
         if team_db.search(lambda x: x['name'] == team_data['name']):
@@ -46,10 +42,8 @@ async def add_team(team: Team, vft=Depends(auth.is_admin)):
 
 
 @router.post("/remove_team")
-async def remove_team(team: Team, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def remove_team(team: Team):
     async with team_lock:
         TeamQuery = Query()
         result = team_db.search(TeamQuery.id == team.id)
@@ -67,10 +61,8 @@ async def get_client_teams():
 
 
 @router.post("/add_client_team")
-async def add_client_team(team: ClientTeam, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def add_client_team(team: ClientTeam):
     async with client_team_lock:
         team_data = team.dict()
         if client_team_db.search(lambda x: x['name'] == team_data['name']):
@@ -80,10 +72,8 @@ async def add_client_team(team: ClientTeam, vft=Depends(auth.is_admin)):
 
 
 @router.post("/remove_client_team")
-async def remove_client_team(team: Team, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def remove_client_team(team: Team):
     async with client_team_lock:
         TeamQuery = Query()
         result = client_team_db.search(TeamQuery.name == team.name)
@@ -94,10 +84,8 @@ async def remove_client_team(team: Team, vft=Depends(auth.is_admin)):
 
 
 @router.post("/add_client_team/group")
-async def update_client_team_group(team: ClientTeam, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def update_client_team_group(team: ClientTeam):
     async with client_team_lock:
         TeamQuery = Query()
         team_data = team.dict()

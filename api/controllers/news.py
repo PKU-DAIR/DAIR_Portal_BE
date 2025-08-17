@@ -8,7 +8,7 @@ from fastapi import APIRouter, Header, Depends, Form, File, UploadFile
 from api.models.body import response_body, NewsItem
 from api.models.db_init import ensure_db, ensure_folder
 from api.models.jwt_tool import create_jwt
-from api.models.verify_tool import valid_user, Auth
+from api.models.verify_tool import Auth
 import asyncio
 import base64
 
@@ -24,23 +24,18 @@ news_db = ensure_db('news_db.json')
 
 
 @router.get("/news/get_news")
+@auth.require_admin()
 async def list_news(
     search: Optional[str] = None,
     offset: int = 0,
-    limit: int = 99999,
-    vft=Depends(auth.is_admin)
+    limit: int = 99999
 ):
     """
     获取新闻列表（支持模糊搜索和分页）
     search: Optional[str] = Query(None, description="模糊搜索关键字"),
     offset: int = Query(0, description="分页偏移量"),
-    limit: int = Query(20, description="每页数量"),
-    vft=Depends(auth.is_admin)
+    limit: int = Query(20, description="每页数量")
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with news_lock:
         NewsQuery = Query()
         if search:
@@ -66,20 +61,15 @@ async def list_news(
     )
 
 @router.get("/list_news_size")
+@auth.require_admin()
 async def list_news_size(
     search: Optional[str] = None,
-    limit: int = 99999,
-    vft=Depends(auth.is_admin)
+    limit: int = 99999
 ):
     """
     获取推文总数（支持模糊搜索）
-    search: Optional[str] = Query(None, description="模糊搜索关键字"),
-    vft=Depends(auth.is_admin)
+    search: Optional[str] = Query(None, description="模糊搜索关键字")
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with news_lock:
         UserQuery = Query()
         if search:
@@ -120,11 +110,14 @@ async def list_client_news(
         else:
             news_items = news_db.all()
 
-        news_items = [item for item in news_items if 'news' in item.get("news_type")]
+        computed_news_items = []
+        for item in news_items:
+            if item.get("news_type") is not None and 'news' in item.get("news_type"):
+                computed_news_items.append(item)
 
         # 分页逻辑
-        total_news = len(news_items)
-        paginated_news = news_items[offset:offset + limit]
+        total_news = len(computed_news_items)
+        paginated_news = computed_news_items[offset:offset + limit]
 
     return response_body(
         code=200,
@@ -158,12 +151,15 @@ async def list_client_projs(
             )
         else:
             news_items = news_db.all()
-
-        news_items = [item for item in news_items if 'projs' in item.get("news_type")]
+        
+        computed_news_items = []
+        for item in news_items:
+            if item.get("news_type") is not None and 'projs' in item.get("news_type"):
+                computed_news_items.append(item)
 
         # 分页逻辑
-        total_news = len(news_items)
-        paginated_news = news_items[offset:offset + limit]
+        total_news = len(computed_news_items)
+        paginated_news = computed_news_items[offset:offset + limit]
 
     return response_body(
         code=200,
@@ -197,12 +193,15 @@ async def list_client_top_news(
             )
         else:
             news_items = news_db.all()
-
-        news_items = [item for item in news_items if 'top_news' in item.get("news_type")]
+        
+        computed_news_items = []
+        for item in news_items:
+            if item.get("news_type") is not None and 'top_news' in item.get("news_type"):
+                computed_news_items.append(item)
 
         # 分页逻辑
-        total_news = len(news_items)
-        paginated_news = news_items[offset:offset + limit]
+        total_news = len(computed_news_items)
+        paginated_news = computed_news_items[offset:offset + limit]
 
     return response_body(
         code=200,
@@ -236,12 +235,15 @@ async def list_client_top_projs(
             )
         else:
             news_items = news_db.all()
-
-        news_items = [item for item in news_items if 'top_projs' in item.get("news_type")]
+        
+        computed_news_items = []
+        for item in news_items:
+            if item.get("news_type") is not None and 'top_projs' in item.get("news_type"):
+                computed_news_items.append(item)
 
         # 分页逻辑
-        total_news = len(news_items)
-        paginated_news = news_items[offset:offset + limit]
+        total_news = len(computed_news_items)
+        paginated_news = computed_news_items[offset:offset + limit]
 
     return response_body(
         code=200,
@@ -254,17 +256,13 @@ async def list_client_top_projs(
 
 
 @router.get("/get_news")
+@auth.require_admin()
 async def get_news(
-    id: str,
-    vft=Depends(auth.is_admin)
+    id: str
 ):
     """
     获取新闻详情
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with news_lock:
         NewsQuery = Query()
         result = news_db.search(NewsQuery.id == id)
@@ -304,16 +302,14 @@ async def get_news(
 
 
 @router.post("/news/update")
+@auth.require_admin()
 async def add_or_update_news(
     news_item: NewsItem,  # 使用 NewsItem 作为请求体
-    vft=Depends(auth.is_admin)
+    valid_info=None
 ):
     """
     添加或更新新闻信息（不包括 banner 图片）
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
     userid = valid_info['userid']
 
     async with news_lock:
@@ -361,16 +357,14 @@ async def add_or_update_news(
             return response_body(code=200, status='success', message='News added successfully', data=news_data)
 
 @router.post("/news/update/info")
+@auth.require_admin()
 async def update_news_info(
     news_item: NewsItem,  # 使用 NewsItem 作为请求体
-    vft=Depends(auth.is_admin)
+    valid_info=None
 ):
     """
     添加或更新新闻信息（不包括 banner 图片）
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
     userid = valid_info['userid']
 
     async with news_lock:
@@ -391,18 +385,14 @@ async def update_news_info(
             return response_body(code=200, status='success', message='News updated successfully')
 
 @router.post("/upload_banner")
+@auth.require_admin()
 async def upload_banner(
     id: str = Form(...),  # 新闻 ID
-    banner: UploadFile = File(...),  # 上传的 banner 图片
-    vft=Depends(auth.is_admin)
+    banner: UploadFile = File(...)  # 上传的 banner 图片
 ):
     """
     上传或更新新闻的 banner 图片
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with news_lock:
         NewsQuery = Query()
         result = news_db.search(NewsQuery.id == id)
@@ -433,17 +423,13 @@ async def get_news_banner(id: str):
 
 
 @router.get("/remove_news")
+@auth.require_admin()
 async def delete_news(
-    id: str,
-    vft=Depends(auth.is_admin)
+    id: str
 ):
     """
     删除新闻
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with news_lock:
         NewsQuery = Query()
         result = news_db.search(NewsQuery.id == id)

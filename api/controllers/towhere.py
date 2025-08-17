@@ -5,7 +5,7 @@ from tinydb import Query
 from fastapi import APIRouter, Header, Depends
 from api.models.body import response_body, ToWhere
 from api.models.db_init import ensure_db
-from api.models.verify_tool import valid_user, Auth
+from api.models.verify_tool import Auth
 import asyncio
 
 router = APIRouter()
@@ -20,20 +20,16 @@ towhere_db = ensure_db('towhere_db.json')
 
 
 @router.get("/get_towheres")
-async def get_towheres(vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def get_towheres():
     async with towhere_lock:
         all_data = towhere_db.all()
     return response_body(code=200, status='success', data=all_data)
 
 
 @router.post("/add_towhere")
-async def add_towhere(towhere: ToWhere, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def add_towhere(towhere: ToWhere):
     async with towhere_lock:
         towhere_data = towhere.dict()
         if towhere_db.search(lambda x: x['name'] == towhere_data['name']):
@@ -44,10 +40,8 @@ async def add_towhere(towhere: ToWhere, vft=Depends(auth.is_admin)):
 
 
 @router.post("/remove_towhere")
-async def remove_towhere(towhere: ToWhere, vft=Depends(auth.is_admin)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_admin()
+async def remove_towhere(towhere: ToWhere):
     async with towhere_lock:
         ToWhereQuery = Query()
         result = towhere_db.search(ToWhereQuery.id == towhere.id)

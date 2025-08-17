@@ -7,7 +7,7 @@ from fastapi import APIRouter, Header, Depends, Form, File, UploadFile
 from api.models.body import response_body, MemberInfo, MemberAward
 from api.models.db_init import ensure_db, ensure_folder
 from api.models.jwt_tool import create_jwt
-from api.models.verify_tool import valid_user, Auth
+from api.models.verify_tool import Auth
 import asyncio
 import base64
 
@@ -31,8 +31,7 @@ async def list_members(
     获取成员列表（支持模糊搜索和分页）
     search: Optional[str] = Query(None, description="模糊搜索关键字"),
     offset: int = Query(0, description="分页偏移量"),
-    limit: int = Query(20, description="每页数量"),
-    vft=Depends(auth.is_admin)
+    limit: int = Query(20, description="每页数量")
     """
     async with member_lock:
         members = member_db.all()
@@ -56,23 +55,18 @@ async def list_members(
 
 
 @router.get("/list_members")
+@auth.require_admin()
 async def list_members(
     search: Optional[str] = None,
     offset: int = 0,
-    limit: int = 99999,
-    vft=Depends(auth.is_admin)
+    limit: int = 99999
 ):
     """
     获取成员列表（支持模糊搜索和分页）
     search: Optional[str] = Query(None, description="模糊搜索关键字"),
     offset: int = Query(0, description="分页偏移量"),
-    limit: int = Query(20, description="每页数量"),
-    vft=Depends(auth.is_admin)
+    limit: int = Query(20, description="每页数量")
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with member_lock:
         MemberQuery = Query()
         if search:
@@ -104,16 +98,13 @@ async def list_members(
 
 
 @router.get("/get_member")
+@auth.require_admin()
 async def get_member(
-    id, vft=Depends(auth.is_admin)
+    id
 ):
     """
     获取成员详情
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with member_lock:
         MemberQuery = Query()
         result = member_db.search(MemberQuery.id == id)
@@ -151,10 +142,8 @@ async def get_member(
 
 
 @router.get("/get_my_cv")
-async def get_myself(vft=Depends(auth.is_user)):
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
+@auth.require_user()
+async def get_myself(valid_info=None):
     userid = valid_info['userid']
     async with member_lock:
         MemberQuery = Query()
@@ -171,17 +160,13 @@ async def get_myself(vft=Depends(auth.is_user)):
 
 
 @router.post("/add_member")
+@auth.require_admin()
 async def add_member(
-    member: MemberInfo,
-    vft=Depends(auth.is_admin)
+    member: MemberInfo
 ):
     """
     添加成员
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with member_lock:
         member_data = member.dict()
         intro = member.introduction
@@ -203,17 +188,13 @@ async def add_member(
 
 
 @router.post("/update_member")
+@auth.require_admin()
 async def update_member(
-    member: MemberInfo,
-    vft=Depends(auth.is_admin)
+    member: MemberInfo
 ):
     """
     更新成员信息
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with member_lock:
         MemberQuery = Query()
         result = member_db.search(MemberQuery.id == member.id)
@@ -233,18 +214,14 @@ async def update_member(
 
 
 @router.post("/upload_member_avatar")
+@auth.require_admin()
 async def upload_member_avatar(
     id: str = Form(...),
-    member_avatar: UploadFile = File(...),
-    vft=Depends(auth.is_admin)
+    member_avatar: UploadFile = File(...)
 ):
     """
     上传成员头像
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     # 保存文件
     ensure_folder(f'member_cv/{id}')
     file_path = os.path.join(f'member_cv/{id}', 'avatar.jpg')
@@ -270,17 +247,13 @@ async def get_member_avatar(id):
 
 
 @router.get("/remove_member")
+@auth.require_admin()
 async def delete_member(
-    id,
-    vft=Depends(auth.is_admin)
+    id
 ):
     """
     删除成员
     """
-    if not vft[0]:
-        return vft[1]
-    valid_info = vft[1]
-
     async with member_lock:
         MemberQuery = Query()
         result = member_db.search(MemberQuery.id == id)
