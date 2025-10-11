@@ -160,7 +160,7 @@ async def get_myself(valid_info=None):
 
 
 @router.post("/add_member")
-@auth.require_admin()
+@auth.require_user()
 async def add_member(
     member: MemberInfo
 ):
@@ -188,7 +188,7 @@ async def add_member(
 
 
 @router.post("/update_member")
-@auth.require_admin()
+@auth.require_user()
 async def update_member(
     member: MemberInfo
 ):
@@ -214,7 +214,7 @@ async def update_member(
 
 
 @router.post("/upload_member_avatar")
-@auth.require_admin()
+@auth.require_user()
 async def upload_member_avatar(
     id: str = Form(...),
     member_avatar: UploadFile = File(...)
