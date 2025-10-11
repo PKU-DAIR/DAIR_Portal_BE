@@ -20,7 +20,7 @@ towhere_db = ensure_db('towhere_db.json')
 
 
 @router.get("/get_towheres")
-@auth.require_admin()
+@auth.require_user()
 async def get_towheres():
     async with towhere_lock:
         all_data = towhere_db.all()

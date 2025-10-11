@@ -20,7 +20,7 @@ edu_db = ensure_db('edu_db.json')
 
 
 @router.get("/get_edus")
-@auth.require_admin()
+@auth.require_user()
 async def get_edus():
     async with edu_lock:
         all_data = edu_db.all()

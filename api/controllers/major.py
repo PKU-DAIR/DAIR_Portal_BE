@@ -20,7 +20,7 @@ major_db = ensure_db('major_db.json')
 
 
 @router.get("/get_majors")
-@auth.require_admin()
+@auth.require_user()
 async def get_majors():
     async with major_lock:
         all_data = major_db.all()

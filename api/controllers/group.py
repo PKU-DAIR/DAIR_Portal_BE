@@ -20,7 +20,7 @@ group_db = ensure_db('group_db.json')
 
 
 @router.get("/get_groups")
-@auth.require_admin()
+@auth.require_user()
 async def get_groups():
     async with group_lock:
         all_data = group_db.all()

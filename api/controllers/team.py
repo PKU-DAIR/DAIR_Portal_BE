@@ -22,7 +22,7 @@ client_team_db = ensure_db('client_team_db.json')
 
 
 @router.get("/get_teams")
-@auth.require_admin()
+@auth.require_user()
 async def get_teams():
     async with team_lock:
         all_data = team_db.all()

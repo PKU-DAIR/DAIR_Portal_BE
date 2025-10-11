@@ -24,7 +24,7 @@ award_level_db = ensure_db('award_level_db.json')
 
 
 @router.get("/get_award_levels")
-@auth.require_admin()
+@auth.require_user()
 async def get_award_levels():
     async with award_level_lock:
         all_data = award_level_db.all()
@@ -56,7 +56,7 @@ async def remove_award_level(award_level: AwardLevel):
 
 
 @router.get("/get_award_items")
-@auth.require_admin()
+@auth.require_user()
 async def get_award_items():
     async with award_item_lock:
         all_data = award_item_db.all()
