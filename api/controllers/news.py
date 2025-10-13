@@ -154,7 +154,7 @@ async def list_client_projs(
         
         computed_news_items = []
         for item in news_items:
-            if item.get("news_type") is not None and 'projs' in item.get("news_type"):
+            if item.get("news_type") is not None and 'proj' in item.get("news_type"):
                 computed_news_items.append(item)
 
         # 分页逻辑
@@ -238,7 +238,7 @@ async def list_client_top_projs(
         
         computed_news_items = []
         for item in news_items:
-            if item.get("news_type") is not None and 'top_projs' in item.get("news_type"):
+            if item.get("news_type") is not None and 'top_proj' in item.get("news_type"):
                 computed_news_items.append(item)
 
         # 分页逻辑
@@ -279,7 +279,7 @@ async def get_news(
     return response_body(code=200, status='success', data=news_item)
 
 @router.get("/client/get_news")
-async def get_news(
+async def get_news_client(
     id: str
 ):
     """
