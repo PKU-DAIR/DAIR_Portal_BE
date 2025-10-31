@@ -11,7 +11,7 @@ from api.models.verify_tool import Auth
 import asyncio
 import base64
 
-router = APIRouter()
+router = APIRouter(tags=['Member'])
 
 member_lock = asyncio.Lock()
 

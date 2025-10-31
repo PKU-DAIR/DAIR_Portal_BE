@@ -12,7 +12,7 @@ from api.models.jwt_tool import create_jwt
 from api.models.verify_tool import Auth
 import asyncio
 
-router = APIRouter()
+router = APIRouter(tags=['User'])
 
 user_lock = asyncio.Lock()
 
@@ -25,7 +25,7 @@ auth = Auth(app_config=app_config)
 user_db = ensure_db('user_db.json')
 
 
-@router.post("/apply_user")
+@router.post("/apply_user", summary='Apply for a user account', operation_id='ApplyUser')
 async def apply(user: User):
     if user.userid == app_config['root_name']:
         return response_body(code=4001, status='failed', message='invlid invite userid: illegal userid)')
@@ -51,7 +51,7 @@ async def apply(user: User):
     return response_body(code=200, status='success', message='User registered successfully', data=user_data)
 
 
-@router.post("/login")
+@router.post("/login", summary='Login', operation_id='Login')
 async def login(user: User):
     if user.userid == app_config['root_name'] and user.pwd == app_config['root_pwd']:
         role = 'admin'
@@ -82,7 +82,7 @@ async def login(user: User):
         return response_body(data={'token': token, 'userid': user_data['userid'], 'role': role, 'exp': exp})
 
 
-@router.get("/info_me")
+@router.get("/info_me", summary='Get user info', operation_id='GetUserInfo')
 @auth.require_user()
 async def get_my_info(valid_info=None):
     userid = valid_info['userid']
@@ -104,7 +104,7 @@ async def get_my_info(valid_info=None):
     return response_body(code=200, data=result)
 
 
-@router.post("/update_me")
+@router.post("/update_me", summary='Update user info', operation_id='UpdateUserInfo')
 @auth.require_user()
 async def update_myself(user: UserInfo, valid_info=None):
     userid = valid_info['userid']
@@ -129,7 +129,7 @@ async def update_myself(user: UserInfo, valid_info=None):
     return response_body(code=200, status='success', message='Update user info successfully', data=result)
 
 
-@router.post("/update_pwd")
+@router.post("/update_pwd", summary='Update user password', operation_id='UpdateUserPassword')
 @auth.require_user()
 async def update_pwd_when_login(user: UserSecurityInfo, valid_info=None):
     userid = valid_info['userid']
@@ -153,7 +153,7 @@ async def update_pwd_when_login(user: UserSecurityInfo, valid_info=None):
     return response_body(code=200, status='success', message='Update user password successfully')
 
 
-@router.get("/user/get_users")
+@router.get("/user/get_users", summary='Get all users (Admin)', operation_id='GetAllUsers')
 @auth.require_admin()
 async def get_users(valid_info=None):
     all_data = user_db.all()
@@ -163,7 +163,7 @@ async def get_users(valid_info=None):
     return res()
 
 
-@router.get("/list_users")
+@router.get("/list_users", summary='List users (Admin)', operation_id='ListUsers')
 @auth.require_admin()
 async def list_users(
     search: Optional[str] = None,
@@ -202,7 +202,7 @@ async def list_users(
     )
 
 
-@router.get("/list_users_size")
+@router.get("/list_users_size", summary='Get total user count (Admin)', operation_id='GetTotalUserCount')
 @auth.require_admin()
 async def list_users_size(
     search: Optional[str] = None
@@ -229,7 +229,7 @@ async def list_users_size(
     )
 
 
-@router.post("/upload_avatar")
+@router.post("/upload_avatar", summary='Upload user avatar', operation_id='UploadAvatar')
 @auth.require_user()
 async def upload_avatar(
     user_avatar: UploadFile = File(...),
@@ -248,7 +248,7 @@ async def upload_avatar(
     return response_body(code=200, status='success', message='Avatar uploaded successfully', data={"file_path": file_path})
 
 
-@router.get("/user/avatar")
+@router.get("/user/avatar", summary='Get user avatar', operation_id='GetUserAvatar')
 async def get_user_avatar(id):
     """
     获取用户头像
@@ -263,7 +263,7 @@ async def get_user_avatar(id):
     return response_body(code=200, status='success', data=f'data:image/jpeg;base64,{avatar_data}')
 
 
-@router.get("/me/avatar")
+@router.get("/me/avatar", summary='Get my avatar', operation_id='GetMyAvatar')
 @auth.require_user()
 async def get_my_avatar(valid_info=None):
     """
@@ -281,7 +281,7 @@ async def get_my_avatar(valid_info=None):
     return response_body(code=200, status='success', data=f'data:image/jpeg;base64,{avatar_data}')
 
 
-@router.get("/user/get_users_roles")
+@router.get("/user/get_users_roles", summary='Get all user roles (Admin)', operation_id='GetAllUserRoles')
 @auth.require_admin()
 async def get_users_roles():
     roles = [
@@ -291,7 +291,7 @@ async def get_users_roles():
     return res()
 
 
-@router.post("/add/role")
+@router.post("/add/role", summary='Add user role (Admin)', operation_id='AddUserRole')
 @auth.require_admin()
 async def add_user_role(user: UserInfo):
     userid = user.userid
@@ -317,7 +317,7 @@ async def add_user_role(user: UserInfo):
     return response_body(code=200, status='success', message='Update user info successfully', data=result)
 
 
-@router.post("/del/role")
+@router.post("/del/role", summary='Remove user role (Admin)', operation_id='RemoveUserRole')
 @auth.require_admin()
 async def remove_user_role(user: UserInfo):
     userid = user.userid

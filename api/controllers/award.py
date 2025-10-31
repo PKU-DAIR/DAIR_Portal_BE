@@ -8,7 +8,7 @@ from api.models.db_init import ensure_db
 from api.models.verify_tool import Auth
 import asyncio
 
-router = APIRouter()
+router = APIRouter(tags=['Award'])
 
 award_item_lock = asyncio.Lock()
 

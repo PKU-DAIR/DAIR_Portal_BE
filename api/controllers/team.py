@@ -8,7 +8,7 @@ from api.models.db_init import ensure_db
 from api.models.verify_tool import Auth
 import asyncio
 
-router = APIRouter()
+router = APIRouter(tags=['Team'])
 
 team_lock = asyncio.Lock()
 client_team_lock = asyncio.Lock()
