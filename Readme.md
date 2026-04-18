@@ -1,67 +1,205 @@
-# PKU-DAIR BE
+<div align="center">
+  <h1>PKU-DAIR Portal Backend</h1>
 
-### 📇 Project Description
+  <p>
+    <a href="https://www.python.org/">
+      <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" />
+    </a>
+    <a href="https://fastapi.tiangolo.com/">
+      <img src="https://img.shields.io/badge/FastAPI-Backend-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" />
+    </a>
+    <a href="https://www.sqlite.org/">
+      <img src="https://img.shields.io/badge/SQLite-Storage-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
+    </a>
+    <a href="#license">
+      <img src="https://img.shields.io/badge/License-MIT-2F80ED?style=flat-square" alt="MIT License" />
+    </a>
+  </p>
 
-The team protal website backend of PKU-DAIR.
+  <h4><i>Backend service for the PKU-DAIR team portal</i></h4>
+</div>
 
-### 🔨 Installation (Local)
+---
+
+## 1. Overview
+
+PKU-DAIR Portal Backend provides the API service for the PKU-DAIR team portal. It manages users, members, teams, groups, education labels, awards, news, publications, and related uploaded assets.
+
+The service is built with FastAPI and Tortoise ORM, using SQLite as the default database.
+
+```text
+Client / Admin UI
+        |
+        v
+FastAPI Routers
+        |
+        v
+Tortoise ORM + SQLite
+        |
+        +-- db/
+        +-- member_cv/
+        +-- news/
+        +-- user/
+        +-- backup/
+```
+
+---
+
+## 2. Features
+
+* User authentication and profile management
+* Member CV and avatar storage
+* News content and banner storage
+* Team, group, major, education, destination, and award metadata APIs
+* Publication record management
+* SQLite schema generation through Tortoise ORM
+* Automatic monthly database backups under `backup/db_YYYY_MM_DD`
+* Docker Compose deployment with persistent host-mounted data
+
+---
+
+## 3. Project Structure
+
+```text
+.
+├── app.py                         # FastAPI application entrypoint
+├── api/
+│   ├── controllers/               # API routers
+│   └── models/                    # ORM models, auth helpers, backup logic
+├── config/
+│   └── app_config.json.sample     # Config template
+├── db/                            # SQLite database and legacy JSON data
+├── member_cv/                     # Member CV files and avatars
+├── news/                          # News content and banner assets
+├── user/                          # User avatar assets
+├── backup/                        # Auto-generated database backups
+├── docker-compose.yml
+├── dockerfile
+└── requirements.txt
+```
+
+---
+
+## 4. Quick Start
+
+### 4.1 Install Dependencies
 
 ```bash
-pip install fastapi pydantic uvicorn[standard]
+pip install -r requirements.txt
 ```
 
-### 🌏 API
+### 4.2 Configure the App
 
-**Make Config**
+Create the runtime config file:
 
 ```bash
-cp config/app_config.json.example api/app_config.json
+cp config/app_config.json.sample api/app_config.json
 ```
 
-You can set you own `api_key` in `api/app_config.json`, otherwise, the app will run without authentication.
+Edit `api/app_config.json` and set your API key if authentication is required. If no API key is configured, the app can run without authentication.
 
-**Start Server**
-
-Decide whether the data storage inside the docker container or in the physical machine.
-
-The backend automatically creates a database backup at startup when the last backup is at least 30 days old, and checks once per day after startup. Backups are stored in date-named folders such as `backup/db_2026_04_18`.
-
-- docker-compose.yml
-
-If you want to storage the data in the physical machine, please indicate the path in your physical machine.
-Otherwise, please comment the `volumes` attribute in `docker-compose.yml`
-
-```yml
-volumes:
-    - <YOU_PATH>/db:/app/db
-    - <YOU_PATH>/member_cv:/app/member_cv
-    - <YOU_PATH>/backup:/app/backup
-```
+### 4.3 Start the Server
 
 ```bash
 uvicorn app:app --host=0.0.0.0 --port=8000 --reload
 ```
 
-### Docker
+The backend will be available at:
 
-Build and run the docker image
+```text
+http://localhost:8000
+```
+
+Interactive API docs are available at:
+
+```text
+http://localhost:8000/docs
+```
+
+---
+
+## 5. Docker Deployment
+
+Build and start the service:
 
 ```bash
 docker compose up -d --build
 ```
 
-The code is deploy based on shared storage, so that you can modify the code in the physical machine and the docker container will automatically update the code. So, do not delete any necessary code files in the physical machine.
-
-Restart the docker container
+Restart the running service:
 
 ```bash
 docker compose restart
 ```
 
-### License
+The default Compose file mounts runtime data to the host so database files, uploaded assets, and backups survive container rebuilds:
+
+```yml
+volumes:
+  - /root/docker/apps/pku_dair_be/db:/app/db
+  - /root/docker/apps/pku_dair_be/member_cv:/app/member_cv
+  - /root/docker/apps/pku_dair_be/news:/app/news
+  - /root/docker/apps/pku_dair_be/user:/app/user
+  - /root/docker/apps/pku_dair_be/backup:/app/backup
+```
+
+Change the host paths before deployment if your server uses a different data directory.
+
+---
+
+## 6. Data and Backups
+
+Runtime data is intentionally kept outside Git:
+
+* `db/` stores `db.sqlite3` and legacy JSON data files.
+* `member_cv/` stores member CV files and avatars.
+* `news/` stores news content and banner assets.
+* `user/` stores user avatar assets.
+* `backup/` stores automatic database backups.
+
+The backend checks database backups on startup, then checks once per day while the service is running. When the latest backup is at least 30 days old, it creates a new folder named with the current date:
+
+```text
+backup/db_2026_04_18
+```
+
+SQLite backups are created through SQLite's backup API, which is safer than copying a live database file directly.
+
+---
+
+## 7. API Modules
+
+The backend registers routers for the main portal resources:
+
+* `user`
+* `major`
+* `group`
+* `edu`
+* `team`
+* `towhere`
+* `award`
+* `member`
+* `news`
+* `pub`
+
+After starting the service, visit `/docs` to inspect request and response schemas.
+
+---
+
+## 8. Maintenance Notes
+
+* Keep `api/app_config.json` private and do not commit it.
+* Keep mounted runtime directories available before starting Docker.
+* Do not delete host-mounted data directories during deployment.
+* Check `backup/` periodically and move important backups to long-term storage when needed.
+
+---
+
+## License
+
 MIT License
 
-Copyright (c) 2024 Creator SN®
+Copyright (c) 2026 PKU-DAIR
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
