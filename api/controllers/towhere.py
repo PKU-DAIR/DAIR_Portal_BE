@@ -1,51 +1,39 @@
-import os
 import json
 import uuid
-from tinydb import Query
-from fastapi import APIRouter, Header, Depends
+from fastapi import APIRouter
 from api.models.body import response_body, ToWhere
-from api.models.db_init import ensure_db
 from api.models.verify_tool import Auth
-import asyncio
+from api.models.db_models import ToWhereDBModel
 
 router = APIRouter(tags=['ToWhere'])
-
-towhere_lock = asyncio.Lock()
 
 with open('./api/app_config.json') as f:
     app_config = json.load(f)
 auth = Auth(app_config=app_config)
 
-towhere_db = ensure_db('towhere_db.json')
 
-
-@router.get("/get_towheres")
+@router.get('/get_towheres')
 @auth.require_user()
 async def get_towheres():
-    async with towhere_lock:
-        all_data = towhere_db.all()
+    all_data = await ToWhereDBModel.all().values('id', 'name')
     return response_body(code=200, status='success', data=all_data)
 
 
-@router.post("/add_towhere")
+@router.post('/add_towhere')
 @auth.require_admin()
 async def add_towhere(towhere: ToWhere):
-    async with towhere_lock:
-        towhere_data = towhere.dict()
-        if towhere_db.search(lambda x: x['name'] == towhere_data['name']):
-            return response_body(code=4001, status='failed', message='ToWhere already exists')
-        towhere_data['id'] = str(uuid.uuid4())
-        towhere_db.insert(towhere_data)
+    towhere_data = towhere.dict()
+    if await ToWhereDBModel.filter(name=towhere_data['name']).exists():
+        return response_body(code=4001, status='failed', message='ToWhere already exists')
+    towhere_data['id'] = str(uuid.uuid4())
+    await ToWhereDBModel.create(**towhere_data)
     return response_body(code=200, status='success', message='ToWhere added successfully', data=towhere_data)
 
 
-@router.post("/remove_towhere")
+@router.post('/remove_towhere')
 @auth.require_admin()
 async def remove_towhere(towhere: ToWhere):
-    async with towhere_lock:
-        ToWhereQuery = Query()
-        result = towhere_db.search(ToWhereQuery.id == towhere.id)
-        if len(result) == 0:
-            return response_body(code=4004, status='failed', message='ToWhere does not exist')
-        towhere_db.remove(ToWhereQuery.id == towhere.id)
+    removed = await ToWhereDBModel.filter(id=towhere.id).delete()
+    if removed == 0:
+        return response_body(code=4004, status='failed', message='ToWhere does not exist')
     return response_body(code=200, status='success', message='ToWhere removed successfully')

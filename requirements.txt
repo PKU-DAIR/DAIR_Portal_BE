@@ -1,8 +1,8 @@
 tqdm>=4.47.0
 munch>=2.5.0
 numpy>=1.19.5
-fastapi
+fastapi>=0.128.0
 uvicorn[standard]
-tinydb
+tortoise-orm
 pyjwt
 python-multipart

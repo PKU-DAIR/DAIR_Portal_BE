@@ -1,10 +1,11 @@
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
-import shutil
-from fastapi import FastAPI, Header
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from tortoise.contrib.fastapi import register_tortoise
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from api.models.body import response_body
 from api.controllers.user import router as user_router
@@ -25,10 +26,19 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许的前端地址
-    allow_credentials=True,  # 是否允许发送 Cookie
-    allow_methods=["*"],  # 允许的 HTTP 方法
-    allow_headers=["*"],  # 允许的请求头
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+os.makedirs('./db', exist_ok=True)
+register_tortoise(
+    app,
+    db_url='sqlite://./db/db.sqlite3',
+    modules={'models': ['api.models.db_models']},
+    generate_schemas=True,
+    add_exception_handlers=True,
 )
 
 app.include_router(user_router)
@@ -42,7 +52,8 @@ app.include_router(member_router)
 app.include_router(news_router)
 app.include_router(pub_router)
 
-@app.get("/")
+
+@app.get('/')
 def home():
     res = response_body(message='PKU_DAIR Backend is running...')
     return res()
