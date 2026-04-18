@@ -24,6 +24,8 @@ You can set you own `api_key` in `api/app_config.json`, otherwise, the app will 
 
 Decide whether the data storage inside the docker container or in the physical machine.
 
+The backend automatically creates a database backup at startup when the last backup is at least 30 days old, and checks once per day after startup. Backups are stored in date-named folders such as `backup/db_2026_04_18`.
+
 - docker-compose.yml
 
 If you want to storage the data in the physical machine, please indicate the path in your physical machine.
@@ -33,6 +35,7 @@ Otherwise, please comment the `volumes` attribute in `docker-compose.yml`
 volumes:
     - <YOU_PATH>/db:/app/db
     - <YOU_PATH>/member_cv:/app/member_cv
+    - <YOU_PATH>/backup:/app/backup
 ```
 
 ```bash
