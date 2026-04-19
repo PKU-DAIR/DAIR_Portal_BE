@@ -133,7 +133,10 @@ async def update_member(member: MemberInfo):
     member_data['introduction'] = member_id
     member_data['photo'] = member_id
 
-    await MemberDBModel.filter(id=member.id).update(**member_data)
+    update_data = member_data.copy()
+    update_data.pop('id', None)
+
+    await MemberDBModel.filter(id=member.id).update(**update_data)
     return response_body(code=200, status='success', message='Member updated successfully', data=member_data)
 
 
