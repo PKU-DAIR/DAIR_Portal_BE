@@ -11,6 +11,7 @@ from api.models.regular_manager import validate_username
 from api.models.jwt_tool import create_jwt
 from api.models.verify_tool import Auth
 from api.models.db_models import UserDBModel
+from api.utils.image_compress import clear_compressed_image_cache, get_compressed_image_data_url
 
 router = APIRouter(tags=['User'])
 
@@ -175,8 +176,10 @@ async def list_users_size(search: Optional[str] = None):
 @auth.require_user()
 async def upload_avatar(user_avatar: UploadFile = File(...), valid_info=None):
     user_id = valid_info['userid']
-    ensure_folder(f'user/{user_id}')
-    file_path = os.path.join(f'user/{user_id}', 'avatar.jpg')
+    image_dir = f'user/{user_id}'
+    ensure_folder(image_dir)
+    clear_compressed_image_cache(image_dir)
+    file_path = os.path.join(image_dir, 'avatar.jpg')
     with open(file_path, 'wb') as buffer:
         buffer.write(user_avatar.file.read())
     return response_body(code=200, status='success', message='Avatar uploaded successfully', data={'file_path': file_path})
@@ -184,28 +187,24 @@ async def upload_avatar(user_avatar: UploadFile = File(...), valid_info=None):
 
 @router.get('/user/avatar', summary='Get user avatar', operation_id='GetUserAvatar')
 async def get_user_avatar(id):
-    file_path = os.path.join(f'user/{id}', 'avatar.jpg')
+    image_dir = f'user/{id}'
+    file_path = os.path.join(image_dir, 'avatar.jpg')
     if not os.path.exists(file_path):
         return response_body(code=404, status='failed', message='Avatar not found')
 
-    with open(file_path, 'rb') as f:
-        avatar_data = base64.b64encode(f.read()).decode('utf-8')
-
-    return response_body(code=200, status='success', data=f'data:image/jpeg;base64,{avatar_data}')
+    return response_body(code=200, status='success', data=get_compressed_image_data_url(image_dir))
 
 
 @router.get('/me/avatar', summary='Get my avatar', operation_id='GetMyAvatar')
 @auth.require_user()
 async def get_my_avatar(valid_info=None):
     user_id = valid_info['userid']
-    file_path = os.path.join(f'user/{user_id}', 'avatar.jpg')
+    image_dir = f'user/{user_id}'
+    file_path = os.path.join(image_dir, 'avatar.jpg')
     if not os.path.exists(file_path):
         return response_body(code=404, status='failed', message='Avatar not found')
 
-    with open(file_path, 'rb') as f:
-        avatar_data = base64.b64encode(f.read()).decode('utf-8')
-
-    return response_body(code=200, status='success', data=f'data:image/jpeg;base64,{avatar_data}')
+    return response_body(code=200, status='success', data=get_compressed_image_data_url(image_dir))
 
 
 @router.get('/user/get_users_roles', summary='Get all user roles (Admin)', operation_id='GetAllUserRoles')

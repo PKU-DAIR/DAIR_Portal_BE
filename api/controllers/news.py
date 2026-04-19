@@ -2,7 +2,6 @@ import os
 import json
 import uuid
 import shutil
-import base64
 import datetime
 from typing import Optional
 from tortoise.expressions import Q
@@ -11,6 +10,7 @@ from api.models.body import response_body, NewsItem
 from api.models.db_init import ensure_folder
 from api.models.verify_tool import Auth
 from api.models.db_models import NewsDBModel
+from api.utils.image_compress import clear_compressed_image_cache, get_compressed_image_data_url
 
 router = APIRouter(tags=['News'])
 
@@ -179,7 +179,9 @@ async def upload_banner(id: str = Form(...), banner: UploadFile = File(...)):
     if not result:
         return response_body(code=404, status='failed', message='News not found')
 
-    banner_path = os.path.join(f'news/{id}', 'banner.jpg')
+    image_dir = f'news/{id}'
+    clear_compressed_image_cache(image_dir)
+    banner_path = os.path.join(image_dir, 'banner.jpg')
     with open(banner_path, 'wb') as buffer:
         buffer.write(banner.file.read())
 
@@ -188,14 +190,12 @@ async def upload_banner(id: str = Form(...), banner: UploadFile = File(...)):
 
 @router.get('/get_news_banner', operation_id='GetNewsBanner')
 async def get_news_banner(id: str):
-    file_path = os.path.join(f'news/{id}', 'banner.jpg')
+    image_dir = f'news/{id}'
+    file_path = os.path.join(image_dir, 'banner.jpg')
     if not os.path.exists(file_path):
         return response_body(code=404, status='failed', message='Banner not found')
 
-    with open(file_path, 'rb') as f:
-        banner_data = base64.b64encode(f.read()).decode('utf-8')
-
-    return response_body(code=200, status='success', data=f'data:image/jpeg;base64,{banner_data}')
+    return response_body(code=200, status='success', data=get_compressed_image_data_url(image_dir))
 
 
 @router.get('/remove_news', operation_id='DeleteNews')

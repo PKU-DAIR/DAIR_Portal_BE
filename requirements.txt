@@ -6,3 +6,4 @@ uvicorn[standard]
 tortoise-orm
 pyjwt
 python-multipart
+Pillow

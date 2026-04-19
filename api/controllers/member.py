@@ -1,7 +1,6 @@
 import os
 import json
 import uuid
-import base64
 from typing import Optional
 from tortoise.expressions import Q
 from fastapi import APIRouter, Form, File, UploadFile
@@ -9,6 +8,7 @@ from api.models.body import response_body, MemberInfo
 from api.models.db_init import ensure_folder
 from api.models.verify_tool import Auth
 from api.models.db_models import MemberDBModel
+from api.utils.image_compress import clear_compressed_image_cache, get_compressed_image_data_url
 
 router = APIRouter(tags=['Member'])
 
@@ -140,8 +140,10 @@ async def update_member(member: MemberInfo):
 @router.post('/upload_member_avatar', operation_id='UploadMemberAvatar')
 @auth.require_user()
 async def upload_member_avatar(id: str = Form(...), member_avatar: UploadFile = File(...)):
-    ensure_folder(f'member_cv/{id}')
-    file_path = os.path.join(f'member_cv/{id}', 'avatar.jpg')
+    image_dir = f'member_cv/{id}'
+    ensure_folder(image_dir)
+    clear_compressed_image_cache(image_dir)
+    file_path = os.path.join(image_dir, 'avatar.jpg')
     with open(file_path, 'wb') as buffer:
         buffer.write(member_avatar.file.read())
     return response_body(code=200, status='success', message='Avatar uploaded successfully', data={'file_path': file_path})
@@ -149,14 +151,12 @@ async def upload_member_avatar(id: str = Form(...), member_avatar: UploadFile = 
 
 @router.get('/get_member_avatar', operation_id='GetMemberAvatar')
 async def get_member_avatar(id):
-    file_path = os.path.join(f'member_cv/{id}', 'avatar.jpg')
+    image_dir = f'member_cv/{id}'
+    file_path = os.path.join(image_dir, 'avatar.jpg')
     if not os.path.exists(file_path):
         return response_body(code=404, status='failed', message='Avatar not found')
 
-    with open(file_path, 'rb') as f:
-        avatar_data = base64.b64encode(f.read()).decode('utf-8')
-
-    return response_body(code=200, status='success', data=f'data:image/jpeg;base64,{avatar_data}')
+    return response_body(code=200, status='success', data=get_compressed_image_data_url(image_dir))
 
 
 @router.get('/remove_member', operation_id='DeleteMember')
