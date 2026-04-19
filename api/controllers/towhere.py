@@ -12,14 +12,14 @@ with open('./api/app_config.json') as f:
 auth = Auth(app_config=app_config)
 
 
-@router.get('/get_towheres')
+@router.get('/get_towheres', operation_id='GetToWheres')
 @auth.require_user()
 async def get_towheres():
     all_data = await ToWhereDBModel.all().values('id', 'name')
     return response_body(code=200, status='success', data=all_data)
 
 
-@router.post('/add_towhere')
+@router.post('/add_towhere', operation_id='AddToWhere')
 @auth.require_admin()
 async def add_towhere(towhere: ToWhere):
     towhere_data = towhere.dict()
@@ -30,7 +30,7 @@ async def add_towhere(towhere: ToWhere):
     return response_body(code=200, status='success', message='ToWhere added successfully', data=towhere_data)
 
 
-@router.post('/remove_towhere')
+@router.post('/remove_towhere', operation_id='RemoveToWhere')
 @auth.require_admin()
 async def remove_towhere(towhere: ToWhere):
     removed = await ToWhereDBModel.filter(id=towhere.id).delete()

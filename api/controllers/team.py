@@ -12,14 +12,14 @@ with open('./api/app_config.json') as f:
 auth = Auth(app_config=app_config)
 
 
-@router.get('/get_teams')
+@router.get('/get_teams', operation_id='GetTeams')
 @auth.require_user()
 async def get_teams():
     all_data = await TeamDBModel.all().values('id', 'name')
     return response_body(code=200, status='success', data=all_data)
 
 
-@router.post('/add_team')
+@router.post('/add_team', operation_id='AddTeam')
 @auth.require_admin()
 async def add_team(team: Team):
     team_data = team.dict()
@@ -30,7 +30,7 @@ async def add_team(team: Team):
     return response_body(code=200, status='success', message='Team added successfully', data=team_data)
 
 
-@router.post('/remove_team')
+@router.post('/remove_team', operation_id='RemoveTeam')
 @auth.require_admin()
 async def remove_team(team: Team):
     removed = await TeamDBModel.filter(id=team.id).delete()
@@ -39,13 +39,13 @@ async def remove_team(team: Team):
     return response_body(code=200, status='success', message='Team removed successfully')
 
 
-@router.get('/get_client_teams')
+@router.get('/get_client_teams', operation_id='GetClientTeams')
 async def get_client_teams():
     all_data = await ClientTeamDBModel.all().values('id', 'name', 'groups')
     return response_body(code=200, status='success', data=all_data)
 
 
-@router.post('/add_client_team')
+@router.post('/add_client_team', operation_id='AddClientTeam')
 @auth.require_admin()
 async def add_client_team(team: ClientTeam):
     team_data = team.dict()
@@ -56,7 +56,7 @@ async def add_client_team(team: ClientTeam):
     return response_body(code=200, status='success', message='Team added successfully', data=team_data)
 
 
-@router.post('/remove_client_team')
+@router.post('/remove_client_team', operation_id='RemoveClientTeam')
 @auth.require_admin()
 async def remove_client_team(team: Team):
     removed = await ClientTeamDBModel.filter(name=team.name).delete()
@@ -65,7 +65,7 @@ async def remove_client_team(team: Team):
     return response_body(code=200, status='success', message='Team removed successfully')
 
 
-@router.post('/add_client_team/group')
+@router.post('/add_client_team/group', operation_id='UpdateClientTeamGroup')
 @auth.require_admin()
 async def update_client_team_group(team: ClientTeam):
     team_data = team.dict()

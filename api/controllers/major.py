@@ -12,14 +12,14 @@ with open('./api/app_config.json') as f:
 auth = Auth(app_config=app_config)
 
 
-@router.get('/get_majors')
+@router.get('/get_majors', operation_id='GetMajors')
 @auth.require_user()
 async def get_majors():
     all_data = await MajorDBModel.all().values('id', 'name')
     return response_body(code=200, status='success', data=all_data)
 
 
-@router.post('/add_major')
+@router.post('/add_major', operation_id='AddMajor')
 @auth.require_admin()
 async def add_major(major: Major):
     major_data = major.dict()
@@ -30,7 +30,7 @@ async def add_major(major: Major):
     return response_body(code=200, status='success', message='Major added successfully', data=major_data)
 
 
-@router.post('/remove_major')
+@router.post('/remove_major', operation_id='RemoveMajor')
 @auth.require_admin()
 async def remove_major(major: Major):
     removed = await MajorDBModel.filter(id=major.id).delete()

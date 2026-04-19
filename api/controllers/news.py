@@ -27,7 +27,7 @@ async def _query_news(search: Optional[str] = None):
     return await NewsDBModel.all().values(*NEWS_FIELDS)
 
 
-@router.get('/news/get_news')
+@router.get('/news/get_news', operation_id='ListNews')
 @auth.require_admin()
 async def list_news(search: Optional[str] = None, offset: int = 0, limit: int = 99999):
     news_items = await _query_news(search)
@@ -36,7 +36,7 @@ async def list_news(search: Optional[str] = None, offset: int = 0, limit: int = 
     return response_body(code=200, status='success', data={'list': paginated_news, 'total': total_news})
 
 
-@router.get('/list_news_size')
+@router.get('/list_news_size', operation_id='ListNewsSize')
 @auth.require_admin()
 async def list_news_size(search: Optional[str] = None, limit: int = 99999):
     news = await _query_news(search)
@@ -44,7 +44,7 @@ async def list_news_size(search: Optional[str] = None, limit: int = 99999):
     return response_body(data=total_news)
 
 
-@router.get('/news/client/news')
+@router.get('/news/client/news', operation_id='ListClientNews')
 async def list_client_news(search: Optional[str] = None, offset: int = 0, limit: int = 99999):
     news_items = await _query_news(search)
     computed_news_items = [item for item in news_items if item.get('news_type') is not None and 'news' in item.get('news_type')]
@@ -53,7 +53,7 @@ async def list_client_news(search: Optional[str] = None, offset: int = 0, limit:
     return response_body(code=200, status='success', data={'list': paginated_news, 'total': total_news})
 
 
-@router.get('/news/client/projs')
+@router.get('/news/client/projs', operation_id='ListClientProjects')
 async def list_client_projs(search: Optional[str] = None, offset: int = 0, limit: int = 99999):
     news_items = await _query_news(search)
     computed_news_items = [item for item in news_items if item.get('news_type') is not None and 'proj' in item.get('news_type')]
@@ -62,7 +62,7 @@ async def list_client_projs(search: Optional[str] = None, offset: int = 0, limit
     return response_body(code=200, status='success', data={'list': paginated_news, 'total': total_news})
 
 
-@router.get('/news/client/top_news')
+@router.get('/news/client/top_news', operation_id='ListClientTopNews')
 async def list_client_top_news(search: Optional[str] = None, offset: int = 0, limit: int = 99999):
     news_items = await _query_news(search)
     computed_news_items = [item for item in news_items if item.get('news_type') is not None and 'top_news' in item.get('news_type')]
@@ -71,7 +71,7 @@ async def list_client_top_news(search: Optional[str] = None, offset: int = 0, li
     return response_body(code=200, status='success', data={'list': paginated_news, 'total': total_news})
 
 
-@router.get('/news/client/top_projs')
+@router.get('/news/client/top_projs', operation_id='ListClientTopProjects')
 async def list_client_top_projs(search: Optional[str] = None, offset: int = 0, limit: int = 99999):
     news_items = await _query_news(search)
     computed_news_items = [item for item in news_items if item.get('news_type') is not None and 'top_proj' in item.get('news_type')]
@@ -80,7 +80,7 @@ async def list_client_top_projs(search: Optional[str] = None, offset: int = 0, l
     return response_body(code=200, status='success', data={'list': paginated_news, 'total': total_news})
 
 
-@router.get('/get_news')
+@router.get('/get_news', operation_id='GetNews')
 @auth.require_admin()
 async def get_news(id: str):
     result = await NewsDBModel.filter(id=id).values(*NEWS_FIELDS)
@@ -97,7 +97,7 @@ async def get_news(id: str):
     return response_body(code=200, status='success', data=news_item)
 
 
-@router.get('/client/get_news')
+@router.get('/client/get_news', operation_id='GetNewsClient')
 async def get_news_client(id: str):
     result = await NewsDBModel.filter(id=id).values(*NEWS_FIELDS)
     if len(result) == 0:
@@ -113,7 +113,7 @@ async def get_news_client(id: str):
     return response_body(code=200, status='success', data=news_item)
 
 
-@router.post('/news/update')
+@router.post('/news/update', operation_id='AddOrUpdateNews')
 @auth.require_admin()
 async def add_or_update_news(news_item: NewsItem, valid_info=None):
     userid = valid_info['userid']
@@ -154,7 +154,7 @@ async def add_or_update_news(news_item: NewsItem, valid_info=None):
     return response_body(code=200, status='success', message='News added successfully', data=news_data)
 
 
-@router.post('/news/update/info')
+@router.post('/news/update/info', operation_id='UpdateNewsInfo')
 @auth.require_admin()
 async def update_news_info(news_item: NewsItem, valid_info=None):
     if news_item.id:
@@ -172,7 +172,7 @@ async def update_news_info(news_item: NewsItem, valid_info=None):
         return response_body(code=200, status='success', message='News updated successfully')
 
 
-@router.post('/upload_banner')
+@router.post('/upload_banner', operation_id='UploadNewsBanner')
 @auth.require_admin()
 async def upload_banner(id: str = Form(...), banner: UploadFile = File(...)):
     result = await NewsDBModel.filter(id=id).exists()
@@ -186,7 +186,7 @@ async def upload_banner(id: str = Form(...), banner: UploadFile = File(...)):
     return response_body(code=200, status='success', message='Banner uploaded successfully')
 
 
-@router.get('/get_news_banner')
+@router.get('/get_news_banner', operation_id='GetNewsBanner')
 async def get_news_banner(id: str):
     file_path = os.path.join(f'news/{id}', 'banner.jpg')
     if not os.path.exists(file_path):
@@ -198,7 +198,7 @@ async def get_news_banner(id: str):
     return response_body(code=200, status='success', data=f'data:image/jpeg;base64,{banner_data}')
 
 
-@router.get('/remove_news')
+@router.get('/remove_news', operation_id='DeleteNews')
 @auth.require_admin()
 async def delete_news(id: str):
     removed = await NewsDBModel.filter(id=id).delete()

@@ -89,7 +89,7 @@ app.include_router(news_router)
 app.include_router(pub_router)
 
 
-@app.get('/')
+@app.get('/', operation_id='Home')
 def home():
     res = response_body(message='PKU_DAIR Backend is running...')
     return res()

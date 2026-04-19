@@ -12,14 +12,14 @@ with open('./api/app_config.json') as f:
 auth = Auth(app_config=app_config)
 
 
-@router.get('/get_groups')
+@router.get('/get_groups', operation_id='GetGroups')
 @auth.require_user()
 async def get_groups():
     all_data = await GroupDBModel.all().values('id', 'name')
     return response_body(code=200, status='success', data=all_data)
 
 
-@router.post('/add_group')
+@router.post('/add_group', operation_id='AddGroup')
 @auth.require_admin()
 async def add_group(group: Group):
     group_data = group.dict()
@@ -30,7 +30,7 @@ async def add_group(group: Group):
     return response_body(code=200, status='success', message='Group added successfully', data=group_data)
 
 
-@router.post('/remove_group')
+@router.post('/remove_group', operation_id='RemoveGroup')
 @auth.require_admin()
 async def remove_group(group: Group):
     removed = await GroupDBModel.filter(id=group.id).delete()

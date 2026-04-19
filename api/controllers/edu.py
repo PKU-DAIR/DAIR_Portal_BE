@@ -12,14 +12,14 @@ with open('./api/app_config.json') as f:
 auth = Auth(app_config=app_config)
 
 
-@router.get('/get_edus')
+@router.get('/get_edus', operation_id='GetEdus')
 @auth.require_user()
 async def get_edus():
     all_data = await EduDBModel.all().values('id', 'name')
     return response_body(code=200, status='success', data=all_data)
 
 
-@router.post('/add_edu')
+@router.post('/add_edu', operation_id='AddEdu')
 @auth.require_admin()
 async def add_edu(edu: Edu):
     edu_data = edu.dict()
@@ -30,7 +30,7 @@ async def add_edu(edu: Edu):
     return response_body(code=200, status='success', message='Edu added successfully', data=edu_data)
 
 
-@router.post('/remove_edu')
+@router.post('/remove_edu', operation_id='RemoveEdu')
 @auth.require_admin()
 async def remove_edu(edu: Edu):
     removed = await EduDBModel.filter(id=edu.id).delete()

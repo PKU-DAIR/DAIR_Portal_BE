@@ -21,7 +21,7 @@ PUB_FIELDS = [
 ]
 
 
-@router.get('/publications/get_publications')
+@router.get('/publications/get_publications', operation_id='ListPublications')
 async def list_publications(search: Optional[str] = None, offset: int = 0, limit: int = 99999):
     if search:
         pub_items = await PublicationDBModel.filter(
@@ -35,7 +35,7 @@ async def list_publications(search: Optional[str] = None, offset: int = 0, limit
     return response_body(code=200, status='success', data={'list': paginated_pubs, 'total': total_pubs})
 
 
-@router.get('/publications/get_publication')
+@router.get('/publications/get_publication', operation_id='GetPublication')
 @auth.require_admin()
 async def get_publication(id: str):
     result = await PublicationDBModel.filter(id=id).values(*PUB_FIELDS)
@@ -44,7 +44,7 @@ async def get_publication(id: str):
     return response_body(code=200, status='success', data=result[0])
 
 
-@router.post('/publications/update')
+@router.post('/publications/update', operation_id='AddOrUpdatePublication')
 @auth.require_admin()
 async def add_or_update_publication(pub_item: PublicationItem):
     if pub_item.id:
@@ -105,7 +105,7 @@ async def add_or_update_publication(pub_item: PublicationItem):
     return response_body(code=200, status='success', message='Publication added successfully', data=pub_data)
 
 
-@router.delete('/publications/remove')
+@router.delete('/publications/remove', operation_id='DeletePublication')
 @auth.require_admin()
 async def delete_publication(id: str):
     removed = await PublicationDBModel.filter(id=id).delete()

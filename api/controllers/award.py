@@ -12,14 +12,14 @@ with open('./api/app_config.json') as f:
 auth = Auth(app_config=app_config)
 
 
-@router.get('/get_award_levels')
+@router.get('/get_award_levels', operation_id='GetAwardLevels')
 @auth.require_user()
 async def get_award_levels():
     all_data = await AwardLevelDBModel.all().values('id', 'level')
     return response_body(code=200, status='success', data=all_data)
 
 
-@router.post('/add_award_level')
+@router.post('/add_award_level', operation_id='AddAwardLevel')
 @auth.require_admin()
 async def add_award_level(award_level: AwardLevel):
     award_level_data = award_level.dict()
@@ -30,7 +30,7 @@ async def add_award_level(award_level: AwardLevel):
     return response_body(code=200, status='success', message='AwardLevel added successfully', data=award_level_data)
 
 
-@router.post('/remove_award_level')
+@router.post('/remove_award_level', operation_id='RemoveAwardLevel')
 @auth.require_admin()
 async def remove_award_level(award_level: AwardLevel):
     removed = await AwardLevelDBModel.filter(id=award_level.id).delete()
@@ -39,14 +39,14 @@ async def remove_award_level(award_level: AwardLevel):
     return response_body(code=200, status='success', message='AwardLevel removed successfully')
 
 
-@router.get('/get_award_items')
+@router.get('/get_award_items', operation_id='GetAwardItems')
 @auth.require_user()
 async def get_award_items():
     all_data = await AwardItemDBModel.all().values('id', 'name')
     return response_body(code=200, status='success', data=all_data)
 
 
-@router.post('/add_award_item')
+@router.post('/add_award_item', operation_id='AddAwardItem')
 @auth.require_admin()
 async def add_award_item(award_item: AwardItem):
     award_item_data = award_item.dict()
@@ -57,7 +57,7 @@ async def add_award_item(award_item: AwardItem):
     return response_body(code=200, status='success', message='AwardItem added successfully', data=award_item_data)
 
 
-@router.post('/remove_award_item')
+@router.post('/remove_award_item', operation_id='RemoveAwardItem')
 @auth.require_admin()
 async def remove_award_item(award_item: AwardItem):
     removed = await AwardItemDBModel.filter(id=award_item.id).delete()

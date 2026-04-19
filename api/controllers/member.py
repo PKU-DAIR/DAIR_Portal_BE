@@ -22,7 +22,7 @@ MEMBER_FIELDS = [
 ]
 
 
-@router.get('/list_members_client')
+@router.get('/list_members_client', operation_id='ListMembersClient')
 async def list_members_client(offset: int = 0, limit: int = 99999):
     members = await MemberDBModel.all().values(*MEMBER_FIELDS)
     total_members = len(members)
@@ -32,7 +32,7 @@ async def list_members_client(offset: int = 0, limit: int = 99999):
     return response_body(code=200, status='success', data={'list': paginated_members, 'total': total_members})
 
 
-@router.get('/list_members')
+@router.get('/list_members', operation_id='ListMembers')
 @auth.require_admin()
 async def list_members(search: Optional[str] = None, offset: int = 0, limit: int = 99999):
     if search:
@@ -50,7 +50,7 @@ async def list_members(search: Optional[str] = None, offset: int = 0, limit: int
     return response_body(code=200, status='success', data={'list': paginated_members, 'total': total_members})
 
 
-@router.get('/get_member')
+@router.get('/get_member', operation_id='GetMember')
 @auth.require_admin()
 async def get_member(id):
     result = await MemberDBModel.filter(id=id).values(*MEMBER_FIELDS)
@@ -64,7 +64,7 @@ async def get_member(id):
     return response_body(code=200, status='success', data=member)
 
 
-@router.get('/get_member_client')
+@router.get('/get_member_client', operation_id='GetMemberClient')
 async def get_member_client(id):
     result = await MemberDBModel.filter(id=id).values(*MEMBER_FIELDS)
     if len(result) == 0:
@@ -78,7 +78,7 @@ async def get_member_client(id):
     return response_body(code=200, status='success', data=member)
 
 
-@router.get('/get_my_cv')
+@router.get('/get_my_cv', operation_id='GetMyCv')
 @auth.require_user()
 async def get_myself(valid_info=None):
     userid = valid_info['userid']
@@ -93,7 +93,7 @@ async def get_myself(valid_info=None):
     return response_body(code=200, status='success', data=member)
 
 
-@router.post('/add_member')
+@router.post('/add_member', operation_id='AddMember')
 @auth.require_user()
 async def add_member(member: MemberInfo):
     member_data = member.dict()
@@ -117,7 +117,7 @@ async def add_member(member: MemberInfo):
     return response_body(code=200, status='success', message='Member added successfully', data=member_data)
 
 
-@router.post('/update_member')
+@router.post('/update_member', operation_id='UpdateMember')
 @auth.require_user()
 async def update_member(member: MemberInfo):
     existed = await MemberDBModel.filter(id=member.id).exists()
@@ -137,7 +137,7 @@ async def update_member(member: MemberInfo):
     return response_body(code=200, status='success', message='Member updated successfully', data=member_data)
 
 
-@router.post('/upload_member_avatar')
+@router.post('/upload_member_avatar', operation_id='UploadMemberAvatar')
 @auth.require_user()
 async def upload_member_avatar(id: str = Form(...), member_avatar: UploadFile = File(...)):
     ensure_folder(f'member_cv/{id}')
@@ -147,7 +147,7 @@ async def upload_member_avatar(id: str = Form(...), member_avatar: UploadFile = 
     return response_body(code=200, status='success', message='Avatar uploaded successfully', data={'file_path': file_path})
 
 
-@router.get('/get_member_avatar')
+@router.get('/get_member_avatar', operation_id='GetMemberAvatar')
 async def get_member_avatar(id):
     file_path = os.path.join(f'member_cv/{id}', 'avatar.jpg')
     if not os.path.exists(file_path):
@@ -159,7 +159,7 @@ async def get_member_avatar(id):
     return response_body(code=200, status='success', data=f'data:image/jpeg;base64,{avatar_data}')
 
 
-@router.get('/remove_member')
+@router.get('/remove_member', operation_id='DeleteMember')
 @auth.require_admin()
 async def delete_member(id):
     removed = await MemberDBModel.filter(id=id).delete()
