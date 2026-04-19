@@ -198,6 +198,48 @@ async def get_news_banner(id: str):
     return response_body(code=200, status='success', data=get_compressed_image_data_url(image_dir))
 
 
+@router.post('/upload_news_image', operation_id='UploadNewsImage')
+@auth.require_admin()
+async def upload_news_image(id: str = Form(...), image: UploadFile = File(...)):
+    result = await NewsDBModel.filter(id=id).exists()
+    if not result:
+        return response_body(code=404, status='failed', message='News not found')
+
+    image_dir = f'news/{id}'
+    ensure_folder(image_dir)
+    image_name = f'{uuid.uuid4()}.jpg'
+    image_path = os.path.join(image_dir, image_name)
+    with open(image_path, 'wb') as buffer:
+        buffer.write(image.file.read())
+
+    return response_body(
+        code=200,
+        status='success',
+        message='Image uploaded successfully',
+        data={'image_name': image_name},
+    )
+
+
+@router.get('/get_news_image', operation_id='GetNewsImage')
+async def get_news_image(newsid: str, image_name: str):
+    def _is_valid_news_image_name(image_name: str) -> bool:
+        return (
+            image_name
+            and image_name == os.path.basename(image_name)
+            and image_name.endswith('.jpg')
+            and '_cmp_cache' not in image_name
+        )
+    if not _is_valid_news_image_name(image_name):
+        return response_body(code=400, status='failed', message='Invalid image name')
+
+    image_dir = f'news/{newsid}'
+    image_path = os.path.join(image_dir, image_name)
+    if not os.path.exists(image_path):
+        return response_body(code=404, status='failed', message='Image not found')
+
+    return response_body(code=200, status='success', data=get_compressed_image_data_url(image_dir, image_name))
+
+
 @router.get('/remove_news', operation_id='DeleteNews')
 @auth.require_admin()
 async def delete_news(id: str):
