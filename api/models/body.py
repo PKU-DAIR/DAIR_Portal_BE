@@ -107,6 +107,7 @@ class MemberInfo(BaseModel):
     awards: List[MemberAward]
     email: str
     mobile: str
+    external: Optional[str] = None
 
 class NewsItem(BaseModel):
     id: str = None

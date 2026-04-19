@@ -18,7 +18,7 @@ auth = Auth(app_config=app_config)
 
 MEMBER_FIELDS = [
     'id', 'name', 'grade', 'session', 'major', 'title', 'toWhere', 'postAddress',
-    'educations', 'teams', 'groups', 'introduction', 'photo', 'userid', 'awards', 'email', 'mobile'
+    'educations', 'teams', 'groups', 'introduction', 'photo', 'userid', 'awards', 'email', 'mobile', 'external'
 ]
 
 

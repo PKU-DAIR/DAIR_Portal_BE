@@ -80,6 +80,7 @@ class MemberDBModel(BaseDBModel):
     awards = fields.JSONField()
     email = fields.CharField(max_length=255)
     mobile = fields.CharField(max_length=64)
+    external = fields.TextField(null=True)
 
 
 class NewsDBModel(BaseDBModel):
