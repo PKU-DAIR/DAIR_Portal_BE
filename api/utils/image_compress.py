@@ -44,6 +44,16 @@ def get_compressed_image_data_url(image_dir: str, image_file_name: str = None) -
     return f'data:image/jpeg;base64,{image_data}'
 
 
+def get_compressed_image_path(image_dir: str, image_file_name: str = None) -> str:
+    """
+    获取压缩后的图片文件路径。
+
+    这个方法用于需要直接返回图片 blob 的接口。内部会复用同一套缓存逻辑：
+    缓存存在就直接返回缓存路径，缓存不存在就先压缩原图并写入缓存。
+    """
+    return _ensure_compressed_image(image_dir, image_file_name)
+
+
 def clear_compressed_image_cache(image_dir: str, image_file_name: str = None) -> None:
     """
     清理压缩缓存。

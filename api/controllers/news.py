@@ -6,11 +6,12 @@ import datetime
 from typing import Optional
 from tortoise.expressions import Q
 from fastapi import APIRouter, Form, File, UploadFile
+from fastapi.responses import FileResponse
 from api.models.body import response_body, NewsItem
 from api.models.db_init import ensure_folder
 from api.models.verify_tool import Auth
 from api.models.db_models import NewsDBModel
-from api.utils.image_compress import clear_compressed_image_cache, get_compressed_image_data_url
+from api.utils.image_compress import clear_compressed_image_cache, get_compressed_image_data_url, get_compressed_image_path
 
 router = APIRouter(tags=['News'])
 
@@ -237,7 +238,7 @@ async def get_news_image(newsid: str, image_name: str):
     if not os.path.exists(image_path):
         return response_body(code=404, status='failed', message='Image not found')
 
-    return response_body(code=200, status='success', data=get_compressed_image_data_url(image_dir, image_name))
+    return FileResponse(get_compressed_image_path(image_dir, image_name), media_type='image/jpeg')
 
 
 @router.get('/remove_news', operation_id='DeleteNews')
