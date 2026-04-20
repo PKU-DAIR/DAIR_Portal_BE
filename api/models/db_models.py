@@ -114,6 +114,8 @@ class PublicationDBModel(BaseDBModel):
     school = fields.TextField(null=True)
     note = fields.TextField(null=True)
     author = fields.TextField(null=True)
+    authors = fields.TextField(null=True)
+    containerTitle = fields.TextField(null=True)
     entry_type = fields.TextField(null=True)
     bib = fields.TextField(null=True)
     update_time = fields.TextField(null=True)

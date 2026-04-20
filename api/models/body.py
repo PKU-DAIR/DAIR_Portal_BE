@@ -140,5 +140,7 @@ class PublicationItem(BaseModel):
     school: Optional[str] = None
     note: Optional[str] = None
     author: Optional[str] = None
+    authors: Optional[str] = None
+    containerTitle: Optional[str] = None
     entry_type: Optional[str] = None
     bib: Optional[str] = None

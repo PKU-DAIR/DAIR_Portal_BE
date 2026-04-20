@@ -17,7 +17,7 @@ auth = Auth(app_config=app_config)
 PUB_FIELDS = [
     'id', 'publisher', 'DOI', 'year', 'createDate', 'source', 'title', 'url', 'booktitle',
     'abstract', 'ISSN', 'language', 'chapter', 'volume', 'number', 'pages', 'school', 'note',
-    'author', 'entry_type', 'bib', 'update_time'
+    'author', 'authors', 'containerTitle', 'entry_type', 'bib', 'update_time'
 ]
 
 
@@ -70,6 +70,8 @@ async def add_or_update_publication(pub_item: PublicationItem):
             'school': pub_item.school,
             'note': pub_item.note,
             'author': pub_item.author,
+            'authors': pub_item.authors,
+            'containerTitle': pub_item.containerTitle,
             'bib': pub_item.bib,
             'entry_type': pub_item.entry_type,
             'update_time': datetime.datetime.now().isoformat(),
@@ -98,6 +100,8 @@ async def add_or_update_publication(pub_item: PublicationItem):
         'school': pub_item.school,
         'note': pub_item.note,
         'author': pub_item.author,
+        'authors': pub_item.authors,
+        'containerTitle': pub_item.containerTitle,
         'bib': pub_item.bib,
         'entry_type': pub_item.entry_type,
     }
