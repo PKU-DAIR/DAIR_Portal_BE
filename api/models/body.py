@@ -118,6 +118,7 @@ class NewsItem(BaseModel):
     content: str = None
     create_time: str = None
     update_time: str = None
+    external: Optional[str] = None
 
 class PublicationItem(BaseModel):
     id: Optional[str] = None

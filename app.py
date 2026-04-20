@@ -66,6 +66,7 @@ async def periodic_db_backup():
 @app.on_event('startup')
 async def startup():
     global backup_task
+    await ensure_external_columns()
     await run_db_backup()
     backup_task = asyncio.create_task(periodic_db_backup())
 

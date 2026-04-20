@@ -91,6 +91,7 @@ class NewsDBModel(BaseDBModel):
     publisher_id = fields.CharField(max_length=255, null=True)
     publish_time = fields.CharField(max_length=255, null=True)
     update_time = fields.CharField(max_length=255, null=True)
+    external = fields.TextField(null=True)
 
 
 class PublicationDBModel(BaseDBModel):

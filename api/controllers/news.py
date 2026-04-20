@@ -19,7 +19,7 @@ with open('./api/app_config.json') as f:
     app_config = json.load(f)
 auth = Auth(app_config=app_config)
 
-NEWS_FIELDS = ['id', 'title', 'description', 'news_type', 'publisher_id', 'publish_time', 'update_time']
+NEWS_FIELDS = ['id', 'title', 'description', 'news_type', 'publisher_id', 'publish_time', 'update_time', 'external']
 
 
 async def _query_news(search: Optional[str] = None):
@@ -131,6 +131,7 @@ async def add_or_update_news(news_item: NewsItem, valid_info=None):
             'title': news_item.title,
             'news_type': news_item.news_type,
             'description': news_item.description,
+            'external': news_item.external,
             'update_time': datetime.datetime.now().isoformat(),
         }
         await NewsDBModel.filter(id=news_item.id).update(**update_data)
@@ -150,6 +151,7 @@ async def add_or_update_news(news_item: NewsItem, valid_info=None):
         'publisher_id': userid,
         'publish_time': datetime.datetime.now().isoformat(),
         'update_time': datetime.datetime.now().isoformat(),
+        'external': news_item.external,
     }
     await NewsDBModel.create(**news_data)
     return response_body(code=200, status='success', message='News added successfully', data=news_data)
@@ -167,6 +169,7 @@ async def update_news_info(news_item: NewsItem, valid_info=None):
             'title': news_item.title,
             'news_type': news_item.news_type,
             'description': news_item.description,
+            'external': news_item.external,
             'update_time': datetime.datetime.now().isoformat(),
         }
         await NewsDBModel.filter(id=news_item.id).update(**update_data)
