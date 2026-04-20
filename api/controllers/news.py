@@ -11,7 +11,11 @@ from api.models.body import response_body, NewsItem
 from api.models.db_init import ensure_folder
 from api.models.verify_tool import Auth
 from api.models.db_models import NewsDBModel
-from api.utils.image_compress import clear_compressed_image_cache, get_compressed_image_data_url, get_compressed_image_path
+from api.utils.image_compress import (
+    clear_compressed_image_cache,
+    get_compressed_image_data_url,
+    get_compressed_image_info,
+)
 
 router = APIRouter(tags=['News'])
 
@@ -241,7 +245,8 @@ async def get_news_image(newsid: str, image_name: str):
     if not os.path.exists(image_path):
         return response_body(code=404, status='failed', message='Image not found')
 
-    return FileResponse(get_compressed_image_path(image_dir, image_name), media_type='image/jpeg')
+    compressed_path, media_type = get_compressed_image_info(image_dir, image_name)
+    return FileResponse(compressed_path, media_type=media_type)
 
 
 @router.get('/remove_news', operation_id='DeleteNews')
