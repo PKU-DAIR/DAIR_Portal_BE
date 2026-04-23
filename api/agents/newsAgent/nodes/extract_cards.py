@@ -47,7 +47,7 @@ def extract_cards_node(state: NewsAgentState) -> NewsAgentState:
         )
         browser.close()
 
-    page_items = result.get("cards", [])
+    page_cards = result.get("cards", [])
     # Preserve previously learned features. The JS also returns features on
     # later pages, but the first learned set is the stable source of truth.
     dom_features = features or result.get("features")
@@ -59,7 +59,7 @@ def extract_cards_node(state: NewsAgentState) -> NewsAgentState:
     elif not dom_features:
         logger.warning("newsAgent.extract_cards no dom_features learned url=%s", url)
 
-    old_cards = state.get("raw_cards", state.get("items", []))
+    old_cards = state.get("raw_cards", [])
     # JS returns only card title/text/html. De-duplicate by a short text prefix
     # instead of URL because field extraction happens later in `finalize_items`.
     seen = {
@@ -68,7 +68,7 @@ def extract_cards_node(state: NewsAgentState) -> NewsAgentState:
     }
     new_items = []
 
-    for item in page_items:
+    for item in page_cards:
         key = (item.get("title"), (item.get("text") or "")[:120])
         if key not in seen:
             seen.add(key)
@@ -77,7 +77,7 @@ def extract_cards_node(state: NewsAgentState) -> NewsAgentState:
     logger.info(
         "newsAgent.extract_cards done url=%s page_cards=%d new_cards=%d total_cards=%d card_groups=%d",
         url,
-        len(page_items),
+        len(page_cards),
         len(new_items),
         len(old_cards) + len(new_items),
         len(feature_groups),
@@ -86,8 +86,5 @@ def extract_cards_node(state: NewsAgentState) -> NewsAgentState:
     return {
         **state,
         "dom_features": dom_features,
-        "page_items": new_items,
-        # `items` mirrors `raw_cards` until finalization for easier debugging.
         "raw_cards": old_cards + new_items,
-        "items": old_cards + new_items,
     }

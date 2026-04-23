@@ -34,12 +34,13 @@ class NewsAgentState(TypedDict, total=False):
 
     # `raw_cards` 跨页面保存 card 的 HTML/text；最终节点会把这些原始 card
     # 一次性交给 LLM，结构化成标准新闻条目。
-    page_items: list[dict[str, Any]]
     raw_cards: list[dict[str, Any]]
 
     # 数据库或外部调用方已经存在的标题。最终 LLM 解析前会先按标题过滤，
     # 避免对已爬取过的新闻重复消耗 token。
     existing_titles: list[str]
+
+    # 最终结构化后的新闻条目。该字段只应该由 `finalize_items_node` 写入。
     items: list[dict[str, Any]]
     next_url: str | None
     errors: list[str]

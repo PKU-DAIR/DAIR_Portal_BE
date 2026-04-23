@@ -83,7 +83,7 @@ def crawl_team_news(
             "max_pages": max_pages,
             "visited_urls": [],
             "existing_titles": list(existing_titles or []),
-            "items": [],
+            "raw_cards": [],
             "errors": [],
         },
         {"recursion_limit": max_pages * 5 + 10},

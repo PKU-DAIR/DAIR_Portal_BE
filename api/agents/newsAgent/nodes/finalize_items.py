@@ -135,7 +135,7 @@ def finalize_items_node(state: NewsAgentState) -> NewsAgentState:
     This is the main cost-saving design: pages are crawled with DOM selectors,
     then all card divs are structured in a single final model call.
     """
-    raw_cards = state.get("raw_cards", state.get("items", []))
+    raw_cards = state.get("raw_cards", [])
     raw_cards = _filter_existing_cards(raw_cards, state.get("existing_titles", []))
     fallback_items = [_strip_html(item) for item in raw_cards]
     errors = state.get("errors", [])
