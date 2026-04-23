@@ -13,7 +13,7 @@ from api.agents.newsAgent.nodes.extract_titles import extract_titles_node
 from api.agents.newsAgent.nodes.fetch_page import fetch_page_node
 from api.agents.newsAgent.nodes.finalize_items import finalize_items_node
 from api.agents.newsAgent.nodes.find_next_page import find_next_page_node
-from api.agents.newsAgent.nodes.state import NewsAgentState
+from api.agents.newsAgent.state.state import NewsAgentState
 
 
 def should_continue(state: NewsAgentState) -> Literal["fetch_page", "finalize_items"]:

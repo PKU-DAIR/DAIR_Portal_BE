@@ -12,3 +12,4 @@ langgraph
 openai
 langchain-openai
 json-repair
+colorlog

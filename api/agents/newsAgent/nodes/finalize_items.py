@@ -1,13 +1,24 @@
 import json
 import re
+from pathlib import Path
+from urllib.parse import urljoin
 
 from json_repair import repair_json
 from langchain_openai import ChatOpenAI
 
 from api.agents.promptLoader.prompt_loader import load_prompt
+from api.logger import get_logger
 
-from .config import load_agent_config
-from .state import NewsAgentState
+from ..state.state import NewsAgentState
+
+
+logger = get_logger()
+CONFIG_PATH = Path(__file__).resolve().parents[3] / "app_config.json"
+
+
+def load_agent_config() -> dict:
+    with CONFIG_PATH.open(encoding="utf-8") as file:
+        return json.load(file)
 
 
 def _strip_html(item: dict) -> dict:
@@ -21,6 +32,12 @@ def _parse_items(content: str) -> list[dict]:
         content = match.group(0)
     data = json.loads(repair_json(content))
     return [item for item in data if isinstance(item, dict)] if isinstance(data, list) else []
+
+
+def _absolute_url(source_page: str, value: str) -> str:
+    if not value:
+        return ""
+    return urljoin(source_page, value)
 
 
 def _build_cards_payload(cards: list[dict]) -> str:
@@ -51,13 +68,14 @@ def _merge_with_fallback(items: list[dict], raw_cards: list[dict]) -> list[dict]
         title = item.get("title") or fallback.get("title")
         if not title:
             continue
+        source_page = item.get("source_page") or fallback.get("source_page", "")
         merged.append(
             {
                 "title": title,
                 "published_at": item.get("published_at") or fallback.get("published_at", ""),
-                "link": item.get("link") or fallback.get("link", ""),
-                "image": item.get("image") or fallback.get("image", ""),
-                "source_page": item.get("source_page") or fallback.get("source_page", ""),
+                "link": _absolute_url(source_page, item.get("link") or fallback.get("link", "")),
+                "image": _absolute_url(source_page, item.get("image") or fallback.get("image", "")),
+                "source_page": source_page,
             }
         )
     return merged
@@ -67,8 +85,10 @@ def finalize_items_node(state: NewsAgentState) -> NewsAgentState:
     raw_cards = state.get("raw_cards", state.get("items", []))
     fallback_items = [_strip_html(item) for item in raw_cards]
     errors = state.get("errors", [])
+    logger.info("newsAgent.finalize_items start raw_cards=%d", len(raw_cards))
 
     if not raw_cards:
+        logger.warning("newsAgent.finalize_items no raw cards")
         return {**state, "items": []}
 
     config = load_agent_config()
@@ -77,6 +97,10 @@ def finalize_items_node(state: NewsAgentState) -> NewsAgentState:
     api_key = config.get("api_key")
 
     if not (base_url and model_name and api_key):
+        logger.warning(
+            "newsAgent.finalize_items using fallback; missing llm config items=%d",
+            len(fallback_items),
+        )
         return {**state, "items": fallback_items}
 
     try:
@@ -96,6 +120,17 @@ def finalize_items_node(state: NewsAgentState) -> NewsAgentState:
     except Exception as exc:
         errors.append(f"LLM item extraction failed: {exc}")
         items = fallback_items
+        logger.warning(
+            "newsAgent.finalize_items llm failed; using fallback items=%d error=%s",
+            len(items),
+            exc,
+        )
+
+    logger.info(
+        "newsAgent.finalize_items done items=%d fallback_items=%d",
+        len(items or fallback_items),
+        len(fallback_items),
+    )
 
     return {
         **state,
