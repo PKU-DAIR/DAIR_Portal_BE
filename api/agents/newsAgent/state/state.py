@@ -19,9 +19,9 @@ class NewsAgentState(TypedDict, total=False):
     pending_page_text: str
     pending_page_html: str
 
-    # 当分页由 JS 实现且 URL 不稳定/不变化时，记录已点击的候选按钮 index。
-    # 后续需要从 `start_url` 重新打开页面并回放这些点击，恢复到同一运行时页面。
-    pagination_click_indices: list[int]
+    # 当分页由 JS 实现且 URL 不稳定/不变化时，记录已经点击“下一页”的次数。
+    # 后续需要从 `start_url` 重新打开页面并重复点击“下一页”，恢复到同一运行时页面。
+    pagination_next_click_count: int
 
     # 首轮 LLM 提取出的线索。card 提取在第一页学到 DOM 特征后，
     # 后续页面通常会跳过标题提取，直接复用这些特征抓 card。

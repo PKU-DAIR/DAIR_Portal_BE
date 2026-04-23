@@ -40,11 +40,12 @@ def _analyze_pagination_with_llm(
     url: str,
     container: dict,
 ) -> dict:
-    """Ask the LLM which pagination control should be clicked next.
+    """Ask the LLM whether pagination should continue.
 
     JS only locates the paginator and serializes candidate controls. The LLM is
-    used for interpretation because paginators vary widely: "下一页", numbers,
-    disabled states, current-page styling, "共4页", and so on.
+    used for interpretation because current-page state can be hidden in styles,
+    classes, disabled attributes, "共4页", and so on. The actual click is always
+    performed by finding a semantic "next page" control in the live DOM.
     """
     config = load_agent_config()
     base_url = config.get("base_url")
@@ -53,7 +54,7 @@ def _analyze_pagination_with_llm(
 
     if not (base_url and model_name and api_key):
         logger.warning("newsAgent.find_next_page no llm config; stop pagination")
-        return {"has_next": False, "target_index": None, "reason": "missing llm config"}
+        return {"has_next": False, "reason": "missing llm config"}
 
     payload = {
         "url": url,
@@ -85,10 +86,7 @@ def _synthetic_page_url(url: str, analysis: dict, click_count: int) -> str:
     directly; `pending_page_html` carries the real clicked DOM.
     """
     current_page = analysis.get("current_page")
-    target_index = analysis.get("target_index")
     page_token = current_page + 1 if isinstance(current_page, int) else click_count + 1
-    if page_token is None:
-        page_token = target_index
     base_url = url.split("#page=", 1)[0]
     return f"{base_url}#page={page_token}"
 
@@ -102,21 +100,19 @@ def _wait_after_click(page) -> None:
     page.wait_for_timeout(1000)
 
 
-def _click_candidate(
+def _click_next(
     page,
     *,
-    target_index: int,
     next_texts: list[str],
     pagination_texts: list[str],
 ) -> bool:
-    """Click a paginator candidate by the index returned from the inspect script."""
+    """Click the visible paginator control whose text means "next page"."""
     clicked = page.evaluate(
         NEXT_PAGE_SCRIPT,
         {
-            "mode": "click",
+            "mode": "click_next",
             "nextTexts": next_texts,
             "paginationTexts": pagination_texts,
-            "targetIndex": target_index,
         },
     )
     if not clicked.get("clicked"):
@@ -152,14 +148,15 @@ def _wait_for_page_change(page, *, before_text: str, before_html: str) -> tuple[
 def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
     """Find and click the next page, if one exists.
 
-    Pagination is handled by real clicks, not by href extraction alone. For
-    script-based pagination we replay prior click indices from `start_url` to
-    reconstruct the browser runtime before asking which control to click next.
+    Pagination is handled by real "next page" clicks, not by href extraction or
+    page-number clicks. For script-based pagination we replay how many times the
+    crawler has already clicked "next" from `start_url` to reconstruct the
+    browser runtime before deciding whether to click next again.
     """
     url = state["current_url"]
     next_texts = state.get("next_page_texts", [])
     pagination_texts = state.get("pagination_texts", [])
-    click_history = state.get("pagination_click_indices", [])
+    next_click_count = state.get("pagination_next_click_count", 0)
     errors = state.get("errors", [])
     logger.info(
         "newsAgent.find_next_page start url=%s next_texts=%s pagination_texts=%s",
@@ -175,22 +172,22 @@ def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
             replay_url = state.get("start_url") or url.split("#page=", 1)[0]
             page.goto(replay_url, wait_until="networkidle", timeout=60000)
 
-            for history_index in click_history:
+            for _ in range(next_click_count):
                 # Restore the current page in a live browser. Reusing static HTML
                 # would lose site-defined functions such as `goToPage(2)`.
-                ok = _click_candidate(
+                ok = _click_next(
                     page,
-                    target_index=history_index,
                     next_texts=next_texts,
                     pagination_texts=pagination_texts,
                 )
                 if not ok:
                     logger.warning(
-                        "newsAgent.find_next_page replay click failed target_index=%s",
-                        history_index,
+                        "newsAgent.find_next_page replay next click failed click_count=%d",
+                        next_click_count,
                     )
                     browser.close()
                     return {**state, "next_url": None}
+                _wait_after_click(page)
 
             before_url = page.url
             before_text = page.locator("body").inner_text(timeout=10000)
@@ -217,20 +214,18 @@ def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
                 json.dumps(analysis, ensure_ascii=False),
             )
 
-            target_index = analysis.get("target_index")
-            if not analysis.get("has_next") or not isinstance(target_index, int):
+            if not analysis.get("has_next"):
                 browser.close()
                 return {**state, "next_url": None}
 
-            # Second browser-side pass clicks the LLM-selected candidate.
-            clicked = _click_candidate(
+            # Second browser-side pass clicks the semantic "next page" control.
+            clicked = _click_next(
                 page,
-                target_index=target_index,
                 next_texts=next_texts,
                 pagination_texts=pagination_texts,
             )
             if not clicked:
-                logger.warning("newsAgent.find_next_page click failed target_index=%s", target_index)
+                logger.warning("newsAgent.find_next_page next click failed")
                 browser.close()
                 return {**state, "next_url": None}
 
@@ -248,10 +243,10 @@ def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
             next_url = (
                 after_url
                 if after_url != before_url and not after_url.startswith("about:blank")
-                else _synthetic_page_url(url, analysis, len(click_history) + 1)
+                else _synthetic_page_url(url, analysis, next_click_count + 1)
             )
             if next_url.startswith("about:blank"):
-                next_url = _synthetic_page_url(url, analysis, len(click_history) + 1)
+                next_url = _synthetic_page_url(url, analysis, next_click_count + 1)
             browser.close()
     except Exception as exc:
         errors.append(f"Find next page failed: {exc}")
@@ -276,9 +271,9 @@ def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
             # synthetic cursor as a real URL.
             "pending_page_text": after_text,
             "pending_page_html": next_html,
-            # Store the chosen control so future pagination decisions can replay
-            # page 2, page 3, etc. from the original live URL.
-            "pagination_click_indices": click_history + [target_index],
+            # Store how many times we clicked "next" so future pagination
+            # decisions can replay page 2, page 3, etc. from the original URL.
+            "pagination_next_click_count": next_click_count + 1,
             "errors": errors,
         }
 

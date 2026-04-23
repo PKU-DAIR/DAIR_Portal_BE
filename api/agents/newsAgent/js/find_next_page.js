@@ -1,8 +1,8 @@
-({ mode = "inspect", nextTexts = [], paginationTexts = [], targetIndex = null }) => {
+({ mode = "inspect", nextTexts = [], paginationTexts = [] }) => {
     // This script has two modes:
     // - inspect: find the most likely pagination container and serialize all
     //   candidate controls for LLM analysis.
-    // - click: click the candidate index selected by the LLM.
+    // - click_next: click the control whose text means "next page".
     const norm = value => (value || "").replace(/\s+/g, " ").trim().toLowerCase();
     const textOf = el => (el.innerText || el.textContent || el.value || el.getAttribute("aria-label") || el.title || "").replace(/\s+/g, " ").trim();
 
@@ -15,9 +15,11 @@
         return rect.width > 0 && rect.height > 0;
     };
     const defaults = ["首页", "上一页", "下一页", "尾页", "上页", "下页", "previous", "prev", "next", "<", ">", "‹", "›", "«", "»"];
+    const nextDefaults = ["下一页", "下页", "next", ">", "›", "»"];
     // Merge LLM-discovered labels with universal defaults. Page numbers are
     // handled separately by the numeric regex below.
     const labels = [...new Set([...nextTexts, ...paginationTexts, ...defaults].map(norm).filter(Boolean))];
+    const nextLabels = [...new Set([...nextTexts, ...nextDefaults].map(norm).filter(Boolean))];
 
     // Include `[onclick]` because many legacy sites implement pagination through
     // script calls such as `goToPage(2)` rather than href navigation.
@@ -52,8 +54,6 @@
     }
 
     const container = containers.sort((a, b) => b.score - a.score)[0]?.el || null;
-    // Candidate indices are stable only within this inspect/click execution
-    // pair. Python stores chosen indices for replay on the same original page.
     const candidates = (container ? candidateControls.filter(el => container.contains(el)) : candidateControls)
         .map((el, index) => ({
             index,
@@ -65,14 +65,21 @@
             html: (el.outerHTML || "").slice(0, 1000),
         }));
 
-    if (mode === "click") {
-        // Recompute candidates in the current live DOM, then click the exact
-        // index selected from the inspect result.
-        const candidate = (container ? candidateControls.filter(el => container.contains(el)) : candidateControls)[targetIndex];
+    if (mode === "click_next") {
+        // Always prefer the semantic "next page" control. Page numbers are only
+        // used by the LLM to understand current/total page state, not as the
+        // primary click target.
+        const scopedControls = container ? controls.filter(el => container.contains(el)) : controls;
+        const candidate = scopedControls.find(el => {
+            if (el.disabled || el.getAttribute("aria-disabled") === "true") return false;
+            const text = norm(textOf(el));
+            if (!text) return false;
+            return nextLabels.some(label => text === label || text.includes(label));
+        });
         if (!candidate) return { clicked: false };
         candidate.scrollIntoView({ block: "center", inline: "center" });
         candidate.click();
-        return { clicked: true };
+        return { clicked: true, text: textOf(candidate), html: (candidate.outerHTML || "").slice(0, 1000) };
     }
 
     return {

@@ -82,6 +82,7 @@ def crawl_team_news(
             "current_url": start_url,
             "max_pages": max_pages,
             "visited_urls": [],
+            "pagination_next_click_count": 0,
             "existing_titles": list(existing_titles or []),
             "raw_cards": [],
             "errors": [],
