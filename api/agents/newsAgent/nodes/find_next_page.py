@@ -69,17 +69,70 @@ def _analyze_pagination_with_llm(
     return _parse_json_object(response.content or "{}")
 
 
-def _synthetic_page_url(url: str, analysis: dict) -> str:
+def _synthetic_page_url(url: str, analysis: dict, click_count: int) -> str:
     current_page = analysis.get("current_page")
     target_index = analysis.get("target_index")
-    page_token = current_page + 1 if isinstance(current_page, int) else target_index
-    return f"{url}#page={page_token}"
+    page_token = current_page + 1 if isinstance(current_page, int) else click_count + 1
+    if page_token is None:
+        page_token = target_index
+    base_url = url.split("#page=", 1)[0]
+    return f"{base_url}#page={page_token}"
+
+
+def _wait_after_click(page) -> None:
+    try:
+        page.wait_for_load_state("networkidle", timeout=10000)
+    except PlaywrightTimeoutError:
+        pass
+    page.wait_for_timeout(1000)
+
+
+def _click_candidate(
+    page,
+    *,
+    target_index: int,
+    next_texts: list[str],
+    pagination_texts: list[str],
+) -> bool:
+    clicked = page.evaluate(
+        NEXT_PAGE_SCRIPT,
+        {
+            "mode": "click",
+            "nextTexts": next_texts,
+            "paginationTexts": pagination_texts,
+            "targetIndex": target_index,
+        },
+    )
+    if not clicked.get("clicked"):
+        return False
+    return True
+
+
+def _wait_for_page_change(page, *, before_text: str, before_html: str) -> tuple[str, str]:
+    try:
+        page.wait_for_function(
+            """({ beforeText, beforeHtml }) => {
+                const text = document.body ? document.body.innerText : "";
+                const html = document.documentElement ? document.documentElement.outerHTML : "";
+                return text !== beforeText || html !== beforeHtml;
+            }""",
+            arg={"beforeText": before_text, "beforeHtml": before_html},
+            timeout=15000,
+        )
+    except PlaywrightTimeoutError:
+        pass
+
+    _wait_after_click(page)
+    after_text = page.locator("body").inner_text(timeout=10000)
+    after_html = page.content()
+    return after_text, after_html
 
 
 def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
     url = state["current_url"]
     next_texts = state.get("next_page_texts", [])
     pagination_texts = state.get("pagination_texts", [])
+    click_history = state.get("pagination_click_indices", [])
     errors = state.get("errors", [])
     logger.info(
         "newsAgent.find_next_page start url=%s next_texts=%s pagination_texts=%s",
@@ -92,13 +145,27 @@ def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
-            if state.get("page_html"):
-                page.set_content(state["page_html"], wait_until="domcontentloaded")
-            else:
-                page.goto(url, wait_until="networkidle", timeout=60000)
+            replay_url = state.get("start_url") or url.split("#page=", 1)[0]
+            page.goto(replay_url, wait_until="networkidle", timeout=60000)
+
+            for history_index in click_history:
+                ok = _click_candidate(
+                    page,
+                    target_index=history_index,
+                    next_texts=next_texts,
+                    pagination_texts=pagination_texts,
+                )
+                if not ok:
+                    logger.warning(
+                        "newsAgent.find_next_page replay click failed target_index=%s",
+                        history_index,
+                    )
+                    browser.close()
+                    return {**state, "next_url": None}
 
             before_url = page.url
             before_text = page.locator("body").inner_text(timeout=10000)
+            before_html = page.content()
             container = page.evaluate(
                 NEXT_PAGE_SCRIPT,
                 {
@@ -124,35 +191,35 @@ def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
                 browser.close()
                 return {**state, "next_url": None}
 
-            clicked = page.evaluate(
-                NEXT_PAGE_SCRIPT,
-                {
-                    "mode": "click",
-                    "nextTexts": next_texts,
-                    "paginationTexts": pagination_texts,
-                    "targetIndex": target_index,
-                },
+            clicked = _click_candidate(
+                page,
+                target_index=target_index,
+                next_texts=next_texts,
+                pagination_texts=pagination_texts,
             )
-            if not clicked.get("clicked"):
+            if not clicked:
                 logger.warning("newsAgent.find_next_page click failed target_index=%s", target_index)
                 browser.close()
                 return {**state, "next_url": None}
 
-            try:
-                page.wait_for_load_state("networkidle", timeout=10000)
-            except PlaywrightTimeoutError:
-                pass
-            page.wait_for_timeout(1000)
-
+            after_text, next_html = _wait_for_page_change(
+                page,
+                before_text=before_text,
+                before_html=before_html,
+            )
             after_url = page.url
-            after_text = page.locator("body").inner_text(timeout=10000)
-            if after_url == before_url and after_text == before_text:
-                logger.warning("newsAgent.find_next_page click did not change page url=%s", url)
+            if after_url == before_url and after_text == before_text and next_html == before_html:
+                logger.warning("newsAgent.find_next_page click did not change dom url=%s", url)
                 browser.close()
                 return {**state, "next_url": None}
 
-            next_url = after_url if after_url != before_url else _synthetic_page_url(url, analysis)
-            next_html = page.content()
+            next_url = (
+                after_url
+                if after_url != before_url and not after_url.startswith("about:blank")
+                else _synthetic_page_url(url, analysis, len(click_history) + 1)
+            )
+            if next_url.startswith("about:blank"):
+                next_url = _synthetic_page_url(url, analysis, len(click_history) + 1)
             browser.close()
     except Exception as exc:
         errors.append(f"Find next page failed: {exc}")
@@ -175,6 +242,7 @@ def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
             "next_url": next_url,
             "pending_page_text": after_text,
             "pending_page_html": next_html,
+            "pagination_click_indices": click_history + [target_index],
             "errors": errors,
         }
 

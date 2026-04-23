@@ -10,6 +10,7 @@ class NewsAgentState(TypedDict, total=False):
     page_html: str
     pending_page_text: str
     pending_page_html: str
+    pagination_click_indices: list[int]
     title_candidates: list[str]
     next_page_texts: list[str]
     pagination_texts: list[str]
