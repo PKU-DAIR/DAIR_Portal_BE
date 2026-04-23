@@ -20,11 +20,13 @@ NEXT_PAGE_SCRIPT = (JS_DIR / "find_next_page.js").read_text(encoding="utf-8")
 
 
 def load_agent_config() -> dict:
+    """Read model/API configuration from the app config file."""
     with CONFIG_PATH.open(encoding="utf-8") as file:
         return json.load(file)
 
 
 def _parse_json_object(content: str) -> dict:
+    """Parse an LLM JSON object, tolerating extra text around it."""
     content = content.strip()
     match = re.search(r"\{[\s\S]*\}", content)
     if match:
@@ -38,6 +40,12 @@ def _analyze_pagination_with_llm(
     url: str,
     container: dict,
 ) -> dict:
+    """Ask the LLM which pagination control should be clicked next.
+
+    JS only locates the paginator and serializes candidate controls. The LLM is
+    used for interpretation because paginators vary widely: "下一页", numbers,
+    disabled states, current-page styling, "共4页", and so on.
+    """
     config = load_agent_config()
     base_url = config.get("base_url")
     model_name = config.get("model_name")
@@ -70,6 +78,12 @@ def _analyze_pagination_with_llm(
 
 
 def _synthetic_page_url(url: str, analysis: dict, click_count: int) -> str:
+    """Create an internal cursor when clicking changes DOM but not URL.
+
+    The crawler still needs a distinct `next_url` so LangGraph continues and
+    `visited_urls` can distinguish pages. This value is not meant to be fetched
+    directly; `pending_page_html` carries the real clicked DOM.
+    """
     current_page = analysis.get("current_page")
     target_index = analysis.get("target_index")
     page_token = current_page + 1 if isinstance(current_page, int) else click_count + 1
@@ -80,6 +94,7 @@ def _synthetic_page_url(url: str, analysis: dict, click_count: int) -> str:
 
 
 def _wait_after_click(page) -> None:
+    """Wait for both network and JavaScript-driven DOM updates after a click."""
     try:
         page.wait_for_load_state("networkidle", timeout=10000)
     except PlaywrightTimeoutError:
@@ -94,6 +109,7 @@ def _click_candidate(
     next_texts: list[str],
     pagination_texts: list[str],
 ) -> bool:
+    """Click a paginator candidate by the index returned from the inspect script."""
     clicked = page.evaluate(
         NEXT_PAGE_SCRIPT,
         {
@@ -109,6 +125,11 @@ def _click_candidate(
 
 
 def _wait_for_page_change(page, *, before_text: str, before_html: str) -> tuple[str, str]:
+    """Return the new page text/html after a click.
+
+    URL changes are not required. Many sites update a list with JavaScript while
+    keeping the same address, so DOM/text changes are the success signal.
+    """
     try:
         page.wait_for_function(
             """({ beforeText, beforeHtml }) => {
@@ -129,6 +150,12 @@ def _wait_for_page_change(page, *, before_text: str, before_html: str) -> tuple[
 
 
 def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
+    """Find and click the next page, if one exists.
+
+    Pagination is handled by real clicks, not by href extraction alone. For
+    script-based pagination we replay prior click indices from `start_url` to
+    reconstruct the browser runtime before asking which control to click next.
+    """
     url = state["current_url"]
     next_texts = state.get("next_page_texts", [])
     pagination_texts = state.get("pagination_texts", [])
@@ -149,6 +176,8 @@ def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
             page.goto(replay_url, wait_until="networkidle", timeout=60000)
 
             for history_index in click_history:
+                # Restore the current page in a live browser. Reusing static HTML
+                # would lose site-defined functions such as `goToPage(2)`.
                 ok = _click_candidate(
                     page,
                     target_index=history_index,
@@ -166,6 +195,8 @@ def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
             before_url = page.url
             before_text = page.locator("body").inner_text(timeout=10000)
             before_html = page.content()
+            # First browser-side pass only inspects paginator candidates and
+            # returns their HTML/text/onclick metadata for LLM analysis.
             container = page.evaluate(
                 NEXT_PAGE_SCRIPT,
                 {
@@ -191,6 +222,7 @@ def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
                 browser.close()
                 return {**state, "next_url": None}
 
+            # Second browser-side pass clicks the LLM-selected candidate.
             clicked = _click_candidate(
                 page,
                 target_index=target_index,
@@ -240,8 +272,12 @@ def find_next_page_node(state: NewsAgentState) -> NewsAgentState:
             **state,
             "current_url": next_url,
             "next_url": next_url,
+            # The next loop consumes this snapshot instead of fetching the
+            # synthetic cursor as a real URL.
             "pending_page_text": after_text,
             "pending_page_html": next_html,
+            # Store the chosen control so future pagination decisions can replay
+            # page 2, page 3, etc. from the original live URL.
             "pagination_click_indices": click_history + [target_index],
             "errors": errors,
         }

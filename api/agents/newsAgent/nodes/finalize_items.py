@@ -17,15 +17,18 @@ CONFIG_PATH = Path(__file__).resolve().parents[3] / "app_config.json"
 
 
 def load_agent_config() -> dict:
+    """Read model/API configuration from the app config file."""
     with CONFIG_PATH.open(encoding="utf-8") as file:
         return json.load(file)
 
 
 def _strip_html(item: dict) -> dict:
+    """Remove bulky raw HTML when falling back to JS-detected fields."""
     return {key: value for key, value in item.items() if key != "html"}
 
 
 def _parse_items(content: str) -> list[dict]:
+    """Parse the final LLM response as a JSON array of item dicts."""
     content = content.strip()
     match = re.search(r"\[[\s\S]*\]", content)
     if match:
@@ -35,12 +38,18 @@ def _parse_items(content: str) -> list[dict]:
 
 
 def _absolute_url(source_page: str, value: str) -> str:
+    """Convert relative links/images from card HTML into absolute URLs."""
     if not value:
         return ""
     return urljoin(source_page, value)
 
 
 def _build_cards_payload(cards: list[dict]) -> str:
+    """Compress raw cards into the prompt payload for final extraction.
+
+    The LLM receives both HTML and plain text. HTML is needed for href/img src;
+    text helps with dates and titles. Length caps keep the prompt bounded.
+    """
     compact_cards = []
     for index, card in enumerate(cards):
         compact_cards.append(
@@ -59,6 +68,12 @@ def _build_cards_payload(cards: list[dict]) -> str:
 
 
 def _merge_with_fallback(items: list[dict], raw_cards: list[dict]) -> list[dict]:
+    """Merge LLM output with JS fallback data.
+
+    The model is asked to return the original `index`; when it does, we use that
+    index to recover source_page and any pre-detected title. URL normalization is
+    performed here rather than delegated to the model.
+    """
     merged = []
     for fallback_index, item in enumerate(items):
         index = item.get("index", fallback_index)
@@ -82,6 +97,11 @@ def _merge_with_fallback(items: list[dict], raw_cards: list[dict]) -> list[dict]
 
 
 def finalize_items_node(state: NewsAgentState) -> NewsAgentState:
+    """Run one final LLM pass over all collected card HTML.
+
+    This is the main cost-saving design: pages are crawled with DOM selectors,
+    then all card divs are structured in a single final model call.
+    """
     raw_cards = state.get("raw_cards", state.get("items", []))
     fallback_items = [_strip_html(item) for item in raw_cards]
     errors = state.get("errors", [])
@@ -97,6 +117,7 @@ def finalize_items_node(state: NewsAgentState) -> NewsAgentState:
     api_key = config.get("api_key")
 
     if not (base_url and model_name and api_key):
+        # Keep output useful even when model credentials are absent.
         logger.warning(
             "newsAgent.finalize_items using fallback; missing llm config items=%d",
             len(fallback_items),
@@ -104,6 +125,7 @@ def finalize_items_node(state: NewsAgentState) -> NewsAgentState:
         return {**state, "items": fallback_items}
 
     try:
+        # The prompt extracts title/date/detail URL/cover image from the raw HTML.
         llm = ChatOpenAI(
             model=model_name,
             api_key=api_key,

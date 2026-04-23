@@ -10,10 +10,18 @@ from ..state.state import NewsAgentState
 logger = get_logger()
 
 JS_DIR = Path(__file__).resolve().parents[1] / "js"
+# The browser-side script is kept in JS so the DOM/XPath logic remains readable
+# and can be debugged directly in devtools if needed.
 CARD_EXTRACT_SCRIPT = (JS_DIR / "extract_cards.js").read_text(encoding="utf-8")
 
 
 def extract_cards_node(state: NewsAgentState) -> NewsAgentState:
+    """Collect raw card HTML from the current page.
+
+    First page: pass LLM title candidates to JS so it can learn repeated card
+    patterns. Later pages: pass learned `dom_features` so the script can collect
+    cards without calling the LLM again.
+    """
     url = state["current_url"]
     titles = state.get("title_candidates", [])
     features = state.get("dom_features")
@@ -28,6 +36,8 @@ def extract_cards_node(state: NewsAgentState) -> NewsAgentState:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
         if state.get("page_html"):
+            # Use clicked-page HTML from state. This matters when the URL is only
+            # an internal cursor and cannot be fetched directly.
             page.set_content(state["page_html"], wait_until="domcontentloaded")
         else:
             page.goto(url, wait_until="networkidle", timeout=60000)
@@ -38,6 +48,8 @@ def extract_cards_node(state: NewsAgentState) -> NewsAgentState:
         browser.close()
 
     page_items = result.get("cards", [])
+    # Preserve previously learned features. The JS also returns features on
+    # later pages, but the first learned set is the stable source of truth.
     dom_features = features or result.get("features")
     feature_groups = (dom_features or {}).get("card_groups", [])
     if dom_features and not features:
@@ -48,6 +60,8 @@ def extract_cards_node(state: NewsAgentState) -> NewsAgentState:
         logger.warning("newsAgent.extract_cards no dom_features learned url=%s", url)
 
     old_cards = state.get("raw_cards", state.get("items", []))
+    # JS returns only card title/text/html. De-duplicate by a short text prefix
+    # instead of URL because field extraction happens later in `finalize_items`.
     seen = {
         (item.get("title"), (item.get("text") or "")[:120])
         for item in old_cards
@@ -73,6 +87,7 @@ def extract_cards_node(state: NewsAgentState) -> NewsAgentState:
         **state,
         "dom_features": dom_features,
         "page_items": new_items,
+        # `items` mirrors `raw_cards` until finalization for easier debugging.
         "raw_cards": old_cards + new_items,
         "items": old_cards + new_items,
     }

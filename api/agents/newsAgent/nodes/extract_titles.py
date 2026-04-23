@@ -16,11 +16,18 @@ CONFIG_PATH = Path(__file__).resolve().parents[3] / "app_config.json"
 
 
 def load_agent_config() -> dict:
+    """Read model/API configuration from the app config file."""
     with CONFIG_PATH.open(encoding="utf-8") as file:
         return json.load(file)
 
 
 def _fallback_titles(text: str) -> list[str]:
+    """Cheap title guesser used when the LLM is unavailable.
+
+    It keeps reasonably title-shaped text lines and filters obvious navigation,
+    numeric-only lines, dates, and duplicates. This is intentionally conservative
+    because the learned DOM features depend on these first-page candidates.
+    """
     titles = []
     seen = set()
 
@@ -42,12 +49,14 @@ def _fallback_titles(text: str) -> list[str]:
 
 
 def _fallback_next_page_texts(text: str) -> list[str]:
+    """Return common next-page labels that appear in the page text."""
     candidates = ["下一页", "下页", "next", ">", "›", "»"]
     lower_text = text.lower()
     return [item for item in candidates if item.lower() in lower_text] or candidates
 
 
 def _fallback_pagination_texts(text: str) -> list[str]:
+    """Return broader pagination clues, including page numbers and total pages."""
     candidates = ["首页", "上一页", "下一页", "尾页", "上页", "下页", "prev", "previous", "next"]
     found = []
     lower_text = text.lower()
@@ -63,12 +72,19 @@ def _fallback_pagination_texts(text: str) -> list[str]:
 
 
 def _clean_string_list(value: object) -> list[str]:
+    """Normalize a JSON value into a non-empty string list."""
     if not isinstance(value, list):
         return []
     return [item.strip() for item in value if isinstance(item, str) and item.strip()]
 
 
 def _parse_extraction(content: str) -> tuple[list[str], list[str], list[str]]:
+    """Parse the LLM response while tolerating markdown/explanatory wrapping.
+
+    `json_repair` lets the pipeline recover from small model formatting issues
+    such as trailing commas or missing quotes. Older prompts returned only a
+    title array, so list responses are still accepted for compatibility.
+    """
     content = content.strip()
     match = re.search(r"\{[\s\S]*\}", content) or re.search(r"\[[\s\S]*\]", content)
     if match:
@@ -88,6 +104,12 @@ def _parse_extraction(content: str) -> tuple[list[str], list[str], list[str]]:
 
 
 def extract_titles_node(state: NewsAgentState) -> NewsAgentState:
+    """Extract first-page title and pagination clues.
+
+    Once `dom_features` exists, later pages no longer need title LLM extraction:
+    `extract_cards.js` can reuse the learned selectors/XPath patterns to gather
+    cards directly.
+    """
     if state.get("dom_features"):
         logger.info("newsAgent.extract_titles skip; dom_features already learned")
         return {**state, "title_candidates": []}
@@ -101,6 +123,7 @@ def extract_titles_node(state: NewsAgentState) -> NewsAgentState:
     errors = state.get("errors", [])
 
     if not (base_url and model_name and api_key):
+        # Keep the crawler usable in local/offline environments.
         titles = _fallback_titles(text)
         next_texts = _fallback_next_page_texts(text)
         pagination_texts = _fallback_pagination_texts(text)
@@ -118,6 +141,10 @@ def extract_titles_node(state: NewsAgentState) -> NewsAgentState:
         }
 
     try:
+        # The prompt asks for three lists:
+        # - article title candidates;
+        # - labels that likely mean "next page";
+        # - broader pagination labels/numbers used to locate the paginator.
         llm = ChatOpenAI(
             model=model_name,
             api_key=api_key,

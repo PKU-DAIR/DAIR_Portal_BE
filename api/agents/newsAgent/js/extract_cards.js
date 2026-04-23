@@ -1,5 +1,18 @@
 ({ titles = [], features = null }) => {
+    // This script runs inside the browser page via Playwright.
+    //
+    // Goal:
+    // 1. On the first page, use known title strings to learn repeated card-item
+    //    selectors/XPath patterns.
+    // 2. On later pages, reuse those features to collect card HTML without
+    //    calling the LLM again.
+    //
+    // It deliberately does not extract link/date/image fields. The Python
+    // finalizer sends all card HTML to the LLM once at the end.
     const norm = value => (value || "").replace(/\s+/g, " ").trim();
+
+    // Compact element signature used for class-based card matching.
+    // Example: <div class="profile-article active"> -> div|active.profile-article
     const signature = el => {
         if (!el) return "";
         const cls = [...el.classList].sort().join(".");
@@ -8,6 +21,10 @@
     const hasClassSignature = sig => sig && sig.includes("|") && sig.split("|")[1];
     const matchesSignature = (el, sig) => signature(el) === sig;
     const shortHtml = el => (el.outerHTML || "").slice(0, 12000);
+
+    // Visibility checks are important because some pages embed article data in
+    // hidden blocks. Hidden text can match titles but should not be used to learn
+    // visual card layout.
     const visibleElement = el => {
         if (!el || !el.isConnected) return false;
         const style = window.getComputedStyle(el);
@@ -30,6 +47,8 @@
     };
 
     const textNodes = () => {
+        // TreeWalker lets us find exact text-node matches even when titles are
+        // nested inside anchors/spans rather than directly in card elements.
         const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
         const nodes = [];
         while (walker.nextNode()) nodes.push(walker.currentNode);
@@ -37,6 +56,9 @@
     };
 
     const findTitleElement = title => {
+        // Return the smallest visible element that contains the title text.
+        // Hidden matches are skipped instead of climbing to a visible ancestor;
+        // otherwise a hidden data blob could incorrectly map to the whole page.
         const target = norm(title);
         if (!target) return null;
         const matches = [];
@@ -54,6 +76,7 @@
         }
 
         return matches.sort((a, b) => {
+            // Prefer the smallest visible match: usually the <a> or text wrapper.
             const ar = a.getBoundingClientRect();
             const br = b.getBoundingClientRect();
             return (ar.width * ar.height) - (br.width * br.height);
@@ -61,6 +84,9 @@
     };
 
     const ancestors = el => {
+        // Ordered from nearest ancestor to outer containers. Pair matching stops
+        // at the first suitable sibling level, so this order favors item-level
+        // cards over list-level wrappers.
         const result = [];
         let cur = el;
         while (cur && cur !== document.body && cur !== document.documentElement) {
@@ -71,6 +97,8 @@
     };
 
     const featureGroupsFrom = value => {
+        // Accept both the current shape (`card_groups`) and older fallback
+        // shapes so saved state/debug runs do not break immediately.
         if (!value) return [];
         if (Array.isArray(value.card_groups)) return value.card_groups;
         if (Array.isArray(value.signatures)) {
@@ -81,6 +109,8 @@
     };
 
     const classPredicate = el => {
+        // XPath-safe class matching. We cannot use `@class="..."` because class
+        // order may differ and elements often have multiple classes.
         const classes = [...el.classList];
         if (!classes.length) return "";
         return classes
@@ -89,6 +119,8 @@
     };
 
     const absoluteXPath = el => {
+        // Build a stable absolute-ish XPath. If an id appears, stop there; above
+        // that point is usually irrelevant and more brittle.
         const parts = [];
         let cur = el;
         while (cur && cur.nodeType === Node.ELEMENT_NODE) {
@@ -113,6 +145,8 @@
     };
 
     const relativeXPath = (ancestor, desc) => {
+        // Describe how to get from an anonymous wrapper to the real card child.
+        // This handles markup like: <div><div class="profile-article">...</div></div>
         const parts = [];
         let cur = desc;
         while (cur && cur !== ancestor && cur.nodeType === Node.ELEMENT_NODE) {
@@ -125,6 +159,8 @@
     };
 
     const evaluateXPath = xpath => {
+        // XPathResult snapshots are easier to convert to arrays than iterators
+        // and remain stable while we loop through them.
         const result = document.evaluate(
             xpath,
             document,
@@ -140,6 +176,8 @@
     };
 
     const addFeature = (featuresByKey, feature, a, b) => {
+        // Multiple title pairs can point to the same card XPath. Aggregate those
+        // hits as `matches`; higher counts mean the feature is more reliable.
         if (!feature || !hasClassSignature(feature.card_signature)) return;
 
         const existing = featuresByKey.get(feature.xpath) || {
@@ -158,10 +196,15 @@
     };
 
     const areSiblings = (a, b) => {
+        // A repeated list item normally appears as sibling wrappers/cards under
+        // one parent container.
         return a && b && a !== b && a.parentElement && a.parentElement === b.parentElement;
     };
 
     const rectAligned = (a, b) => {
+        // Sibling items in a vertical list share left/right alignment; items in a
+        // grid may share top/bottom alignment. A small tolerance absorbs subpixel
+        // layout differences.
         const ar = a.getBoundingClientRect();
         const br = b.getBoundingClientRect();
         const tolerance = Math.max(8, Math.min(window.innerWidth, window.innerHeight) * 0.01);
@@ -175,6 +218,8 @@
     };
 
     const cardWithinWrapper = (wrapper, titleEl) => {
+        // If the sibling level is an anonymous wrapper, find the stable classed
+        // element inside it that actually represents the card.
         for (const el of ancestors(titleEl)) {
             if (el === wrapper) break;
             if (el.parentElement === wrapper && hasClassSignature(signature(el))) return el;
@@ -189,6 +234,10 @@
     };
 
     const findSiblingCardFeature = (left, right) => {
+        // Core learning rule:
+        // for each pair of known titles, walk upward until we find aligned
+        // sibling ancestors. If those siblings are anonymous wrappers, record the
+        // relative path to the classed card child inside each wrapper.
         for (const a of ancestors(left.el)) {
             if (!a.parentElement) continue;
 
@@ -210,9 +259,14 @@
                     : `*/${cardXPath.replace(/^\.\//, "")}`;
 
                 return {
+                    // Human-readable class signature for logs/debugging.
                     card_signature: signature(leftCard),
+                    // Parent of the repeated wrappers/cards.
                     wrapper_parent_xpath: parentXPath,
+                    // Path from one wrapper to its card child; "." means the
+                    // sibling itself is the card.
                     card_relative_xpath: cardXPath,
+                    // Full XPath used by later pages to collect cards.
                     xpath: `${parentXPath}/${cardQuery}`,
                 };
             }
@@ -222,6 +276,8 @@
     };
 
     const learnFeaturesByTitlePairs = titleRecords => {
+        // Compare every pair: a/b, a/c, b/c, ... . Noise in title candidates is
+        // tolerated because real repeated card features accumulate more matches.
         const featuresByKey = new Map();
 
         for (let i = 0; i < titleRecords.length; i++) {
@@ -235,6 +291,9 @@
     };
 
     const collectCardsByFeatures = groups => {
+        // Prefer XPath features because they can express anonymous wrappers. If
+        // older state only has a class signature, fall back to full-page class
+        // matching.
         const seen = new Set();
         const cards = [];
 
@@ -265,6 +324,8 @@
     };
 
     const titleRecords = titles
+        // First-page learning requires visible DOM title elements. Later pages
+        // normally pass no titles and reuse `features`.
         .map(title => ({ title, el: findTitleElement(title) }))
         .filter(record => record.el);
 
@@ -275,6 +336,8 @@
 
     const seenItems = new Set();
     const items = cards.map(card => {
+        // Return only minimal card data. Final field extraction is intentionally
+        // delayed to one LLM call after all pages are collected.
         const text = norm(card.innerText || card.textContent);
         const matchedTitle = titles.find(title => text.includes(norm(title))) || "";
 
