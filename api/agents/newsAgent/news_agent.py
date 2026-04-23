@@ -1,10 +1,4 @@
-import argparse
-import json
-import sys
-from pathlib import Path
-from typing import Literal
-
-sys.path.append(str(Path(__file__).resolve().parents[3]))
+from typing import Iterable, Literal
 
 from langgraph.graph import END, StateGraph
 
@@ -64,8 +58,21 @@ def build_news_agent():
     return graph.compile()
 
 
-def crawl_team_news(start_url: str, max_pages: int = 10) -> dict:
-    """Run the compiled graph from a starting organization/news URL."""
+def crawl_team_news(
+    start_url: str,
+    max_pages: int = 10,
+    *,
+    existing_titles: Iterable[str] | None = None,
+) -> dict:
+    """Run the news crawler from FastAPI/service code.
+
+    Args:
+        start_url: Organization/news list URL.
+        max_pages: Maximum number of paginated list pages to crawl.
+        existing_titles: Titles already stored in the database. Matching raw
+            cards are filtered before final LLM extraction to avoid spending
+            tokens on known items.
+    """
     agent = build_news_agent()
     return agent.invoke(
         {
@@ -75,36 +82,9 @@ def crawl_team_news(start_url: str, max_pages: int = 10) -> dict:
             "current_url": start_url,
             "max_pages": max_pages,
             "visited_urls": [],
+            "existing_titles": list(existing_titles or []),
             "items": [],
             "errors": [],
         },
         {"recursion_limit": max_pages * 5 + 10},
     )
-
-
-def main() -> int:
-    """Small CLI wrapper for manual crawling/debugging."""
-    parser = argparse.ArgumentParser(description="Crawl team news/articles from scholar site.")
-    parser.add_argument("url", help="Team scholar homepage/list URL.")
-    parser.add_argument("--max-pages", type=int, default=10)
-    parser.add_argument("--output", default="")
-    args = parser.parse_args()
-
-    result = crawl_team_news(args.url, max_pages=args.max_pages)
-    data = {
-        "visited_urls": result.get("visited_urls", []),
-        "items": result.get("items", []),
-        "errors": result.get("errors", []),
-    }
-
-    print(json.dumps(data, ensure_ascii=False, indent=2))
-
-    if args.output:
-        with open(args.output, "w", encoding="utf-8") as file:
-            json.dump(data, file, ensure_ascii=False, indent=2)
-
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -119,6 +119,19 @@
     };
 
     const absoluteXPath = el => {
+        // 生成“从页面根部出发”的 XPath，用来定位公共列表区域或
+        // wrapper 的父容器。例如：
+        //
+        //   <div id="all">
+        //     <div><div class="profile-article">A</div></div>
+        //     <div><div class="profile-article">B</div></div>
+        //   </div>
+        //
+        // 这里公共父容器可以表示成：
+        //
+        //   //div[@id="all"]
+        //
+        // 这种路径不依赖某个局部上下文，所以叫 absolute。
         // Build a stable absolute-ish XPath. If an id appears, stop there; above
         // that point is usually irrelevant and more brittle.
         const parts = [];
@@ -145,6 +158,19 @@
     };
 
     const relativeXPath = (ancestor, desc) => {
+        // 生成“从某个已知祖先节点出发”的相对 XPath，用来描述匿名
+        // wrapper 内部怎么走到真正的 card。例如：
+        //
+        //   <div>  // wrapper
+        //     <div class="profile-article">A</div>
+        //   </div>
+        //
+        // 从 wrapper 到 card 的路径是：
+        //
+        //   ./div[contains(@class, "profile-article")]
+        //
+        // 这个路径不能单独在全页面执行，因为它依赖 wrapper 作为起点，
+        // 所以叫 relative。
         // Describe how to get from an anonymous wrapper to the real card child.
         // This handles markup like: <div><div class="profile-article">...</div></div>
         const parts = [];
@@ -159,6 +185,19 @@
     };
 
     const evaluateXPath = xpath => {
+        // 执行最终拼好的 XPath，返回匹配到的 DOM 节点。
+        //
+        // 上面两个函数只是“生成路径”；这个函数才是真正用路径取元素。
+        // 最终路径通常是：
+        //
+        //   公共父容器 XPath + /*/ + card 相对 XPath
+        //
+        // 例如：
+        //
+        //   //div[@id="all"]/*/div[contains(..., " profile-article ")]
+        //
+        // 含义是：在公共列表区域下，每个匿名子 wrapper 里面，取真正的
+        // profile-article card 元素。
         // XPathResult snapshots are easier to convert to arrays than iterators
         // and remain stable while we loop through them.
         const result = document.evaluate(

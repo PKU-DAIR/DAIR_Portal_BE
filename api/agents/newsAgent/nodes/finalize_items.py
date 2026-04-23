@@ -44,6 +44,39 @@ def _absolute_url(source_page: str, value: str) -> str:
     return urljoin(source_page, value)
 
 
+def _normalize_title(title: str) -> str:
+    """Normalize title text for duplicate filtering."""
+    return re.sub(r"\s+", "", title or "").strip().lower()
+
+
+def _filter_existing_cards(cards: list[dict], existing_titles: list[str]) -> list[dict]:
+    """Remove raw cards whose detected title already exists.
+
+    This filter runs before the final LLM call. It relies on the lightweight
+    title captured by `extract_cards.js`; cards without a detected title are kept
+    so the final model still has a chance to parse them.
+    """
+    existing = {_normalize_title(title) for title in existing_titles if title}
+    if not existing:
+        return cards
+
+    filtered = []
+    skipped = 0
+    for card in cards:
+        title = _normalize_title(card.get("title", ""))
+        if title and title in existing:
+            skipped += 1
+            continue
+        filtered.append(card)
+
+    logger.info(
+        "newsAgent.finalize_items filtered existing cards skipped=%d kept=%d",
+        skipped,
+        len(filtered),
+    )
+    return filtered
+
+
 def _build_cards_payload(cards: list[dict]) -> str:
     """Compress raw cards into the prompt payload for final extraction.
 
@@ -103,6 +136,7 @@ def finalize_items_node(state: NewsAgentState) -> NewsAgentState:
     then all card divs are structured in a single final model call.
     """
     raw_cards = state.get("raw_cards", state.get("items", []))
+    raw_cards = _filter_existing_cards(raw_cards, state.get("existing_titles", []))
     fallback_items = [_strip_html(item) for item in raw_cards]
     errors = state.get("errors", [])
     logger.info("newsAgent.finalize_items start raw_cards=%d", len(raw_cards))
