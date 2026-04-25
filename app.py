@@ -101,9 +101,9 @@ async def periodic_pub_sync():
 @app.on_event('startup')
 async def startup():
     global backup_task, news_sync_task, pub_sync_task
-    await run_db_backup()
-    await run_news_sync()
-    await run_pub_sync()
+    # await run_db_backup()
+    # await run_news_sync()
+    # await run_pub_sync()
     backup_task = asyncio.create_task(periodic_db_backup())
     news_sync_task = asyncio.create_task(periodic_news_sync())
     pub_sync_task = asyncio.create_task(periodic_pub_sync())
