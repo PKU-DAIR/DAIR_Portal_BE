@@ -11,6 +11,7 @@ from api.models.body import response_body, NewsItem
 from api.models.db_init import ensure_folder
 from api.models.verify_tool import Auth
 from api.models.db_models import NewsDBModel
+from api.utils.news_fetcher import sync_news_from_agent
 from api.utils.image_compress import (
     clear_compressed_image_cache,
     get_compressed_image_data_url,
@@ -39,6 +40,29 @@ async def list_news(search: Optional[str] = None, offset: int = 0, limit: int = 
     total_news = len(news_items)
     paginated_news = news_items[offset:offset + limit]
     return response_body(code=200, status='success', data={'list': paginated_news, 'total': total_news})
+
+
+@router.get('/news/fetch', operation_id='FetchNews')
+@auth.require_admin()
+async def fetch_news(
+    start_url: Optional[str] = None,
+    max_pages: Optional[int] = None,
+    search: Optional[str] = None,
+    publisher_id: Optional[str] = None,
+):
+    try:
+        result = await sync_news_from_agent(
+            start_url=start_url,
+            max_pages=max_pages,
+            search=search,
+            publisher_id=publisher_id,
+        )
+    except ValueError as exc:
+        return response_body(code=400, status='failed', message=str(exc))
+    except Exception as exc:
+        return response_body(code=500, status='failed', message=f'Fetch news failed: {exc}')
+
+    return response_body(code=200, status='success', data=result)
 
 
 @router.get('/list_news_size', operation_id='ListNewsSize')
