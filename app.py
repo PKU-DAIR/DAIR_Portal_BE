@@ -21,6 +21,8 @@ from api.controllers.member import router as member_router
 from api.controllers.news import router as news_router
 from api.controllers.pub import router as pub_router
 from api.models.db_backup import create_monthly_db_backup
+from api.utils.news_fetcher import sync_news_from_agent
+from api.utils.pub_fetcher import sync_publications_from_agent
 
 with open('./api/app_config.json') as f:
     app_config = json.load(f)
@@ -36,9 +38,11 @@ app.add_middleware(
 )
 
 DB_URL = 'sqlite://./db/db.sqlite3'
-BACKUP_CHECK_SECONDS = 24 * 60 * 60
+BACKUP_CHECK_SECONDS = 30 * 24 * 60 * 60
 TORTOISE_MODULES = {'models': ['api.models.db_models']}
 backup_task = None
+news_sync_task = None
+pub_sync_task = None
 
 os.makedirs('./db', exist_ok=True)
 register_tortoise(
@@ -63,11 +67,46 @@ async def periodic_db_backup():
         await run_db_backup()
 
 
+async def run_news_sync():
+    try:
+        await sync_news_from_agent(
+            start_url=app_config.get('scholar_url'),
+            max_pages=5,
+        )
+    except Exception as exc:
+        print(f'Automatic news sync failed: {exc}')
+
+async def periodic_news_sync():
+    while True:
+        await asyncio.sleep(BACKUP_CHECK_SECONDS)
+        await run_news_sync()
+
+
+async def run_pub_sync():
+    try:
+        await sync_publications_from_agent(
+            start_url=app_config.get('publication_url'),
+            max_blocks=5,
+        )
+    except Exception as exc:
+        print(f'Automatic publication sync failed: {exc}')
+
+
+async def periodic_pub_sync():
+    while True:
+        await asyncio.sleep(BACKUP_CHECK_SECONDS)
+        await run_pub_sync()
+
+
 @app.on_event('startup')
 async def startup():
-    global backup_task
+    global backup_task, news_sync_task, pub_sync_task
     await run_db_backup()
+    await run_news_sync()
+    await run_pub_sync()
     backup_task = asyncio.create_task(periodic_db_backup())
+    news_sync_task = asyncio.create_task(periodic_news_sync())
+    pub_sync_task = asyncio.create_task(periodic_pub_sync())
 
 
 @app.on_event('shutdown')
@@ -76,6 +115,14 @@ async def shutdown():
         backup_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await backup_task
+    if news_sync_task is not None:
+        news_sync_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await news_sync_task
+    if pub_sync_task is not None:
+        pub_sync_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await pub_sync_task
 
 app.include_router(user_router)
 app.include_router(major_router)
