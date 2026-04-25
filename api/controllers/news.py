@@ -11,7 +11,7 @@ from api.models.body import response_body, NewsItem
 from api.models.db_init import ensure_folder
 from api.models.verify_tool import Auth
 from api.models.db_models import NewsDBModel
-from api.utils.news_fetcher import sync_news_from_agent
+from api.utils.news_fetcher import get_news_sync_task, start_news_sync_task
 from api.utils.image_compress import (
     clear_compressed_image_cache,
     get_compressed_image_data_url,
@@ -51,7 +51,7 @@ async def fetch_news(
     publisher_id: Optional[str] = None,
 ):
     try:
-        result = await sync_news_from_agent(
+        result = start_news_sync_task(
             start_url=start_url,
             max_pages=max_pages,
             search=search,
@@ -61,6 +61,17 @@ async def fetch_news(
         return response_body(code=400, status='failed', message=str(exc))
     except Exception as exc:
         return response_body(code=500, status='failed', message=f'Fetch news failed: {exc}')
+
+    return response_body(code=200, status='success', data=result)
+
+
+@router.get('/news/fetch/status', operation_id='GetFetchNewsStatus')
+@auth.require_admin()
+async def get_fetch_news_status():
+    try:
+        result = get_news_sync_task()
+    except Exception as exc:
+        return response_body(code=500, status='failed', message=f'Get fetch news status failed: {exc}')
 
     return response_body(code=200, status='success', data=result)
 

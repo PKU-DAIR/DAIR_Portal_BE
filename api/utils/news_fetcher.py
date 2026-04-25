@@ -1,7 +1,8 @@
 import asyncio
 import datetime
+import logging
 import os
-import uuid
+from collections import deque
 from pathlib import Path
 from typing import Any, Optional
 from urllib.request import Request, urlopen
@@ -9,6 +10,7 @@ from urllib.request import Request, urlopen
 from tortoise.expressions import Q
 
 from api.agents.newsAgent.news_agent import crawl_team_news
+from api.logger import get_logger, logging_context, remove_handler
 from api.models.db_init import ensure_folder
 from api.models.db_models import NewsDBModel
 from api.utils.image_compress import clear_compressed_image_cache
@@ -20,12 +22,150 @@ DEFAULT_NEWS_TYPE = "news"
 BANNER_FILE_NAME = "banner.jpg"
 DOWNLOAD_TIMEOUT_SECONDS = 20
 USER_AGENT = "Mozilla/5.0 (compatible; DAIR-Portal-NewsFetcher/1.0)"
+NEWS_FETCH_LOG_LIMIT = 5000
+NEWS_FETCH_LOG_CONTEXT = "news_fetch"
+
+logger = get_logger()
+NEWS_FETCH_STATE: dict[str, Any] = {
+    "status": "idle",
+    "message": "No news fetch task has been started",
+    "params": {},
+    "created_at": None,
+    "updated_at": None,
+    "finished_at": None,
+    "result": None,
+    "error": None,
+    "logs": deque(maxlen=NEWS_FETCH_LOG_LIMIT),
+}
+
+
+class InMemoryTaskLogHandler(logging.Handler):
+    """Collect logs for the singleton news fetch task state."""
+
+    def __init__(self):
+        super().__init__()
+        self.setFormatter(
+            logging.Formatter(
+                fmt="%(asctime)s.%(msecs)03d | %(levelname)-8s | %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if getattr(record, "log_context", "") != NEWS_FETCH_LOG_CONTEXT:
+            return
+        try:
+            message = self.format(record)
+        except Exception:
+            message = record.getMessage()
+        NEWS_FETCH_STATE["logs"].append(message)
+        NEWS_FETCH_STATE["updated_at"] = datetime.datetime.now().isoformat()
 
 
 async def _query_news(search: Optional[str] = None):
     if search:
         return await NewsDBModel.filter(Q(title__icontains=search) | Q(description__icontains=search)).values(*NEWS_FIELDS)
     return await NewsDBModel.all().values(*NEWS_FIELDS)
+
+
+def start_news_sync_task(
+    start_url: Optional[str] = None,
+    max_pages: Optional[int] = None,
+    *,
+    search: Optional[str] = None,
+    publisher_id: Optional[str] = None,
+) -> dict[str, Any]:
+    now = datetime.datetime.now().isoformat()
+    if NEWS_FETCH_STATE["status"] == "running":
+        return get_news_sync_task()
+
+    NEWS_FETCH_STATE.update(
+        {
+            "status": "running",
+            "message": "News fetch task started",
+            "params": {
+                "start_url": start_url,
+                "max_pages": max_pages,
+                "search": search,
+                "publisher_id": publisher_id,
+            },
+            "created_at": now,
+            "updated_at": now,
+            "finished_at": None,
+            "result": None,
+            "error": None,
+            "logs": deque(maxlen=NEWS_FETCH_LOG_LIMIT),
+        }
+    )
+    asyncio.create_task(
+        _run_news_sync_task(
+            start_url=start_url,
+            max_pages=max_pages,
+            search=search,
+            publisher_id=publisher_id,
+        )
+    )
+    return get_news_sync_task()
+
+
+def get_news_sync_task() -> dict[str, Any]:
+    return {
+        "status": NEWS_FETCH_STATE["status"],
+        "message": NEWS_FETCH_STATE["message"],
+        "params": NEWS_FETCH_STATE["params"],
+        "created_at": NEWS_FETCH_STATE["created_at"],
+        "updated_at": NEWS_FETCH_STATE["updated_at"],
+        "finished_at": NEWS_FETCH_STATE["finished_at"],
+        "result": NEWS_FETCH_STATE["result"],
+        "error": NEWS_FETCH_STATE["error"],
+        "logs": list(NEWS_FETCH_STATE["logs"]),
+    }
+
+
+async def _run_news_sync_task(
+    start_url: Optional[str] = None,
+    max_pages: Optional[int] = None,
+    *,
+    search: Optional[str] = None,
+    publisher_id: Optional[str] = None,
+) -> None:
+    handler = InMemoryTaskLogHandler()
+    logger.addHandler(handler)
+    try:
+        with logging_context(NEWS_FETCH_LOG_CONTEXT):
+            logger.info("news fetch task started")
+            result = await sync_news_from_agent(
+                start_url=start_url,
+                max_pages=max_pages,
+                search=search,
+                publisher_id=publisher_id,
+            )
+            NEWS_FETCH_STATE["status"] = "success"
+            NEWS_FETCH_STATE["message"] = "News fetch task finished successfully"
+            NEWS_FETCH_STATE["result"] = result
+            NEWS_FETCH_STATE["updated_at"] = datetime.datetime.now().isoformat()
+            logger.info(
+                "news fetch task finished created_count=%s skipped_existing_count=%s",
+                result.get("created_count", 0),
+                result.get("skipped_existing_count", 0),
+            )
+    except ValueError as exc:
+        NEWS_FETCH_STATE["status"] = "failed"
+        NEWS_FETCH_STATE["message"] = str(exc)
+        NEWS_FETCH_STATE["error"] = str(exc)
+        NEWS_FETCH_STATE["updated_at"] = datetime.datetime.now().isoformat()
+        with logging_context(NEWS_FETCH_LOG_CONTEXT):
+            logger.warning("news fetch task failed error=%s", exc)
+    except Exception as exc:
+        NEWS_FETCH_STATE["status"] = "failed"
+        NEWS_FETCH_STATE["message"] = f"Fetch news failed: {exc}"
+        NEWS_FETCH_STATE["error"] = str(exc)
+        NEWS_FETCH_STATE["updated_at"] = datetime.datetime.now().isoformat()
+        with logging_context(NEWS_FETCH_LOG_CONTEXT):
+            logger.exception("news fetch task crashed")
+    finally:
+        NEWS_FETCH_STATE["finished_at"] = datetime.datetime.now().isoformat()
+        remove_handler(logger, handler)
 
 
 async def sync_news_from_agent(
