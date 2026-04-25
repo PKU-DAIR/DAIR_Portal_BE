@@ -7,6 +7,7 @@ from fastapi import APIRouter
 from api.models.body import response_body, PublicationItem
 from api.models.verify_tool import Auth
 from api.models.db_models import PublicationDBModel
+from api.utils.pub_fetcher import get_publication_sync_task, start_publication_sync_task
 
 router = APIRouter(tags=['Publication'])
 
@@ -33,6 +34,30 @@ async def list_publications(search: Optional[str] = None, offset: int = 0, limit
     total_pubs = len(pub_items)
     paginated_pubs = pub_items[offset:offset + limit]
     return response_body(code=200, status='success', data={'list': paginated_pubs, 'total': total_pubs})
+
+
+@router.get('/publications/fetch', operation_id='FetchPublications')
+@auth.require_admin()
+async def fetch_publications(start_url: Optional[str] = None, max_blocks: Optional[int] = None):
+    try:
+        result = start_publication_sync_task(start_url=start_url, max_blocks=max_blocks)
+    except ValueError as exc:
+        return response_body(code=400, status='failed', message=str(exc))
+    except Exception as exc:
+        return response_body(code=500, status='failed', message=f'Fetch publications failed: {exc}')
+
+    return response_body(code=200, status='success', data=result)
+
+
+@router.get('/publications/fetch/status', operation_id='GetFetchPublicationsStatus')
+@auth.require_admin()
+async def get_fetch_publications_status():
+    try:
+        result = get_publication_sync_task()
+    except Exception as exc:
+        return response_body(code=500, status='failed', message=f'Get fetch publications status failed: {exc}')
+
+    return response_body(code=200, status='success', data=result)
 
 
 @router.get('/publications/get_publication', operation_id='GetPublication')
