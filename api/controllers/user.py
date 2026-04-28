@@ -133,6 +133,26 @@ async def update_pwd_when_login(user: UserSecurityInfo, valid_info=None):
     return response_body(code=200, status='success', message='Update user password successfully')
 
 
+@router.post('/reset_pwd', summary='Reset user password (Admin)', operation_id='ResetUserPassword')
+@auth.require_admin()
+async def reset_user_pwd(user: UserSecurityInfo, valid_info=None):
+    userid = user.userid
+    if userid == app_config['root_name']:
+        return response_body(code=400, status='failed', message='root user password cannot be reset here')
+
+    user_exists = await UserDBModel.filter(userid=userid).exists()
+    if not user_exists:
+        return response_body(code=404, status='failed', message='user does not exist')
+
+    await UserDBModel.filter(userid=userid).update(pwd=_encode_pwd(userid))
+    return response_body(
+        code=200,
+        status='success',
+        message='Reset user password successfully',
+        data={'userid': userid, 'pwd': userid}
+    )
+
+
 @router.get('/user/get_users', summary='Get all users (Admin)', operation_id='GetAllUsers')
 @auth.require_admin()
 async def get_users(valid_info=None):
